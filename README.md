@@ -1,44 +1,54 @@
 # brasileirao-pretreined-tensorflow
 
-Aplicação para análise de dados do Campeonato Brasileiro e experimentos de predição de resultados usando CSVs históricos.
+Aplicação web para análise do Campeonato Brasileiro e predição de resultados com TensorFlow.js, usando dados históricos em CSV.
 
-## Motivação
+## Objetivo
 
-Este projeto foi desenvolvido como prática aplicada com base em conteúdos da aula de TensorFlow na pós-graduação em Inteligência Artificial Aplicada da UNIPDS.
+Projeto acadêmico para prática de ciência de dados e machine learning aplicada ao futebol, com interface única para:
 
-## Tecnologias usadas
+- explorar os dados,
+- treinar o modelo,
+- acompanhar métricas de treino,
+- gerar previsões.
 
-### Aplicação Web + Backend Node integrado
+Fluxo rápido: **ajuste, treine, observe e preveja**.
+
+## Stack
+
+### Web + API (único processo)
 - Next.js 16 (App Router)
 - TypeScript
 - Tailwind CSS
-- Rotas de API do Next.js para dados e machine learning
+- Rotas de API do Next.js
 
-### Machine Learning (em Node)
-- Treinamento e inferência implementados em TypeScript
-- Persistência local de artefatos em `web/.artifacts/`
+### Machine Learning (Node)
+- TensorFlow.js (`@tensorflow/tfjs`)
+- Treinamento e inferência no backend do próprio Next.js
+- Persistência local em `web/.artifacts/`
 
 ### Dados
-- Arquivos CSV em `data/`:
-	- `campeonato-brasileiro-full.csv`
-	- `campeonato-brasileiro-estatisticas-full.csv`
-	- `campeonato-brasileiro-gols.csv`
-	- `campeonato-brasileiro-cartoes.csv`
+Arquivos em `data/`:
 
-## Arquitetura
+- `campeonato-brasileiro-full.csv`
+- `campeonato-brasileiro-estatisticas-full.csv`
+- `campeonato-brasileiro-gols.csv`
+- `campeonato-brasileiro-cartoes.csv`
 
-O projeto roda em um único processo Node via Next.js:
+## Arquitetura atual
 
-- `web/`: interface + APIs internas (`/api/data/*` e `/api/ml/*`)
+O sistema roda no diretório `web/`:
 
-Fluxo resumido:
+- Frontend: página única com seções `Base de dados`, `Treinamento`, `Previsões`, `Exploração`, `Ajuda`.
+- API de dados: `/api/data/*` (leitura e agregação dos CSVs).
+- API de ML: `/api/ml/*` (treino, status, predição e info do modelo).
 
-1. O usuário interage com as páginas no `web/`.
-2. As rotas `/api/data/*` leem/processam CSVs locais.
-3. As rotas `/api/ml/*` treinam e predizem direto no backend Node do Next.js.
-4. O modelo e metadados ficam salvos em `web/.artifacts/`.
+Resumo do fluxo:
 
-## Rodar rápido
+1. A interface chama rotas internas do Next.js.
+2. O backend processa dados e executa treino/predição via TFJS.
+3. O estado do modelo é salvo em `.artifacts`.
+
+## Rodar localmente
 
 ```bash
 cd web
@@ -46,15 +56,48 @@ npm install
 npm run dev
 ```
 
-## URL
+App: `http://localhost:3000`
 
-- App: `http://localhost:3000`
+## Build de produção
 
-## Ordem de teste
+```bash
+cd web
+npm run lint
+npm run build
+npm run start
+```
 
-1. Abra `/exploracao` e confira os dados.
-2. Abra `/treinamento` e execute um treino.
-3. Abra `/previsoes` e rode uma predição.
+## Endpoints principais
+
+### Dados
+- `GET /api/data/years`
+- `GET /api/data/teams?year=...`
+- `GET /api/data/matches?year=...&team=...`
+- `GET /api/data/team-summary?year=...&team=...`
+
+### Machine Learning
+- `POST /api/ml/train`
+- `GET /api/ml/train-status`
+- `POST /api/ml/predict`
+- `GET /api/ml/model-info`
+
+## Parâmetros de treino expostos na UI
+
+- `preset`
+- `epochs`
+- `batch_size`
+- `test_size`
+- `learning_rate`
+- `optimizer`
+- `dropout_rate`
+- `l2_lambda`
+- `hidden_layers` (camadas 1, 2 e 3)
+- `early_stopping_patience`
+- `early_stopping_min_delta`
+
+## Artefatos e Git
+
+Os artefatos do modelo em `.artifacts/` são gerados localmente e estão ignorados no versionamento.
 
 ## Autor
 

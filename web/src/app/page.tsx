@@ -25,6 +25,7 @@ export default async function Home() {
     <AppShell>
       <section id="dashboard" className="scroll-mt-24">
         <h2 className="text-xl font-semibold">Base de dados e modelo</h2>
+        <p className="mt-2 text-sm text-muted">Fluxo rápido: ajuste, treine, observe e preveja.</p>
         <section className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <article className="card-neon">
             <p className="text-muted">Partidas na base</p>
@@ -55,26 +56,21 @@ export default async function Home() {
 
       <section id="treinamento" className="mt-10 scroll-mt-24">
         <TreinamentoProvider>
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section>
-              <h2 className="text-xl font-semibold">Treinamento</h2>
-              <div className="mt-4">
-                <TreinamentoContent />
-              </div>
-            </section>
-
-            <section id="previsoes" className="scroll-mt-24">
-              <h2 className="text-xl font-semibold">Previsões</h2>
-              <div className="mt-4">
-                <PrevisoesContent />
-              </div>
-            </section>
-
-            <section className="xl:col-span-2">
-              <TreinamentoChartsContent />
-            </section>
+          <h2 className="text-xl font-semibold">Treinamento</h2>
+          <div className="mt-4">
+            <TreinamentoContent />
+          </div>
+          <div className="mt-6">
+            <TreinamentoChartsContent />
           </div>
         </TreinamentoProvider>
+      </section>
+
+      <section id="previsoes" className="mt-10 scroll-mt-24">
+        <h2 className="text-xl font-semibold">Previsões</h2>
+        <div className="mt-4">
+          <PrevisoesContent />
+        </div>
       </section>
 
       <section id="exploracao" className="mt-10 scroll-mt-24">

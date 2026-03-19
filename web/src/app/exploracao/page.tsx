@@ -41,15 +41,15 @@ type TeamSummary = {
   }>;
 };
 
-function AccordionChevron() {
+function AccordionChevron({ className = "" }: { className?: string }) {
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
-      className="accordion-arrow h-4 w-4 transition-transform group-open:rotate-180"
+      className={`accordion-arrow h-4 w-4 transition-transform ${className}`.trim()}
     >
-      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7.5 5L12.5 10L7.5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -386,10 +386,10 @@ export function ExploracaoContent() {
         </div>
       </section>
 
-      <details className="group mt-4 card-neon text-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
+      <details className="group/summary mt-4 card-neon text-sm">
+        <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">
+          <AccordionChevron className="group-open/summary:rotate-90" />
           <span>Resumo geral</span>
-          <AccordionChevron />
         </summary>
         <div className="mt-3 grid gap-4 sm:grid-cols-3">
           <article className="card-neon">
@@ -408,10 +408,10 @@ export function ExploracaoContent() {
       </details>
 
       {selectedTeam && teamStatus ? (
-        <details className="group mt-4 card-neon text-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
+        <details className="group/team-status mt-4 card-neon text-sm">
+          <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">
+            <AccordionChevron className="group-open/team-status:rotate-90" />
             <span>Status do time filtrado</span>
-            <AccordionChevron />
           </summary>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-muted">{selectedTeam}</span>
@@ -472,10 +472,10 @@ export function ExploracaoContent() {
         </details>
       ) : null}
 
-      <details className="group mt-4 card-neon text-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
+      <details className="group/top4 mt-4 card-neon text-sm">
+        <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">
+          <AccordionChevron className="group-open/top4:rotate-90" />
           <span>Top 4 times do ano selecionado</span>
-          <AccordionChevron />
         </summary>
         {loading ? (
           <p className="mt-2 text-sm text-muted">Carregando...</p>
@@ -491,16 +491,18 @@ export function ExploracaoContent() {
               return (
                 <details
                   key={team.team}
-                  className="group card-neon-sm"
+                  className="group/top4-item card-neon-sm"
                 >
                   <summary className="cursor-pointer list-none">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold">
-                        {position}. {team.team}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <AccordionChevron className="group-open/top4-item:rotate-90" />
+                        <span className="font-semibold">
+                          {position}. {team.team}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted">{getRankLabel(position)}</span>
-                        <AccordionChevron />
                       </div>
                     </div>
                   </summary>
@@ -546,10 +548,10 @@ export function ExploracaoContent() {
         )}
       </details>
 
-      <details className="group mt-4 card-neon text-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
+      <details className="group/rounds mt-4 card-neon text-sm">
+        <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">
+          <AccordionChevron className="group-open/rounds:rotate-90" />
           <span>Rodadas x Jogos</span>
-          <AccordionChevron />
         </summary>
 
         {loading ? (
