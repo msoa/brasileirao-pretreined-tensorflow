@@ -24,7 +24,7 @@ Fluxo rápido: **ajuste, treine, observe e preveja**.
 ### Machine Learning (Node)
 - TensorFlow.js (`@tensorflow/tfjs`)
 - Treinamento e inferência no backend do próprio Next.js
-- Persistência local em `web/.artifacts/`
+- Persistência local em `.artifacts/`
 
 ### Dados
 Arquivos em `data/`:
@@ -36,7 +36,7 @@ Arquivos em `data/`:
 
 ## Arquitetura atual
 
-O sistema roda no diretório `web/`:
+O sistema roda na raiz do repositório:
 
 - Frontend: página única com seções `Base de dados`, `Treinamento`, `Previsões`, `Exploração`, `Ajuda`.
 - API de dados: `/api/data/*` (leitura e agregação dos CSVs).
@@ -51,7 +51,6 @@ Resumo do fluxo:
 ## Rodar localmente
 
 ```bash
-cd web
 npm install
 npm run dev
 ```
@@ -61,7 +60,6 @@ App: `http://localhost:3000`
 ## Build de produção
 
 ```bash
-cd web
 npm run lint
 npm run build
 npm run start
