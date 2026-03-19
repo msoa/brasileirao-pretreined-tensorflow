@@ -1,11 +1,19 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import * as tf from "@tensorflow/tfjs";
 import { loadMatches } from "@/lib/server/csv-data";
 
 type TrainPayload = {
   epochs: number;
   batch_size: number;
   test_size: number;
+  learning_rate: number;
+  hidden_layers: number[];
+  dropout_rate: number;
+  l2_lambda: number;
+  optimizer: "adam" | "rmsprop";
+  early_stopping_patience: number;
+  early_stopping_min_delta: number;
 };
 
 type PredictPayload = {
@@ -20,10 +28,8 @@ export type TrainingHistory = {
   val_loss: number[];
 };
 
-type ModelState = {
+type ModelMetadata = {
   teams: string[];
-  weights: number[][];
-  bias: number[];
   version: string;
   test_accuracy: number;
 };
@@ -62,11 +68,21 @@ export type PredictResult = {
 };
 
 const LABELS = ["MANDANTE", "EMPATE", "VISITANTE"] as const;
+const FAST_MODE_MAX_EPOCHS = 40;
 const ARTIFACTS_DIR = path.resolve(process.cwd(), ".artifacts");
-const MODEL_FILE = path.resolve(ARTIFACTS_DIR, "match-predictor-node.json");
+const TFJS_MODEL_DIR = path.resolve(ARTIFACTS_DIR, "match-predictor-tfjs");
+const MODEL_STATE_FILE = path.resolve(TFJS_MODEL_DIR, "model-state.json");
 
-let modelState: ModelState | null = null;
+type PersistedModelState = {
+  metadata: ModelMetadata;
+  weightShapes: number[][];
+  weightValues: number[][];
+};
+
+let modelState: ModelMetadata | null = null;
+let tfModel: tf.LayersModel | null = null;
 let modelLoaded = false;
+let trainingStartedAtMs = 0;
 
 const trainingStatus: TrainingStatus = {
   in_progress: false,
@@ -87,8 +103,14 @@ type EncodedSample = {
   target: number;
 };
 
+type EncodedDataset = {
+  xs: number[][];
+  ys: number[][];
+};
+
 function resetTrainingStatus(totalEpochs: number): void {
   trainingStatus.in_progress = true;
+  trainingStartedAtMs = Date.now();
   trainingStatus.current_epoch = 0;
   trainingStatus.total_epochs = totalEpochs;
   trainingStatus.progress = 0;
@@ -98,13 +120,6 @@ function resetTrainingStatus(totalEpochs: number): void {
     loss: [],
     val_loss: [],
   };
-}
-
-function stableSoftmax(logits: number[]): number[] {
-  const maxLogit = Math.max(...logits);
-  const expValues = logits.map((value) => Math.exp(value - maxLogit));
-  const sumExp = expValues.reduce((acc, value) => acc + value, 0);
-  return expValues.map((value) => value / Math.max(sumExp, Number.EPSILON));
 }
 
 function argMax(values: number[]): number {
@@ -121,71 +136,18 @@ function argMax(values: number[]): number {
   return bestIndex;
 }
 
-function computeMetrics(
-  samples: EncodedSample[],
-  weights: number[][],
-  bias: number[],
-  teamCount: number,
-) {
-  if (samples.length === 0) {
-    return {
-      accuracy: 0,
-      loss: 0,
-    };
-  }
-
-  let correct = 0;
-  let lossSum = 0;
-
-  for (const sample of samples) {
-    const awayOffset = teamCount + sample.away;
-    const logits = [0, 1, 2].map((classIndex) => {
-      return bias[classIndex] + weights[sample.home][classIndex] + weights[awayOffset][classIndex];
-    });
-
-    const probs = stableSoftmax(logits);
-    const predicted = argMax(probs);
-    if (predicted === sample.target) {
-      correct += 1;
-    }
-
-    const targetProb = Math.max(probs[sample.target], 1e-12);
-    lossSum += -Math.log(targetProb);
-  }
-
-  return {
-    accuracy: correct / samples.length,
-    loss: lossSum / samples.length,
-  };
+function toNonNegativeMetric(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-async function ensureModelLoaded(): Promise<void> {
-  if (modelLoaded) {
-    return;
-  }
-
-  modelLoaded = true;
-
+async function fileExists(filePath: string): Promise<boolean> {
   try {
-    const raw = await readFile(MODEL_FILE, "utf-8");
-    const parsed = JSON.parse(raw) as ModelState;
-
-    if (
-      Array.isArray(parsed.teams) &&
-      Array.isArray(parsed.weights) &&
-      Array.isArray(parsed.bias) &&
-      typeof parsed.version === "string"
-    ) {
-      modelState = parsed;
-    }
+    await stat(filePath);
+    return true;
   } catch {
-    modelState = null;
+    return false;
   }
-}
-
-async function persistModel(state: ModelState): Promise<void> {
-  await mkdir(ARTIFACTS_DIR, { recursive: true });
-  await writeFile(MODEL_FILE, JSON.stringify(state, null, 2), "utf-8");
 }
 
 function toFiniteNumber(value: unknown, fallback: number): number {
@@ -195,9 +157,21 @@ function toFiniteNumber(value: unknown, fallback: number): number {
 
 function normalizeAndValidateTrainPayload(payload: unknown): TrainPayload {
   const source = payload as Partial<TrainPayload>;
-  const epochs = Math.trunc(toFiniteNumber(source?.epochs, 80));
+  const epochs = Math.trunc(toFiniteNumber(source?.epochs, 40));
   const batchSize = Math.trunc(toFiniteNumber(source?.batch_size, 32));
   const testSize = toFiniteNumber(source?.test_size, 0.2);
+  const learningRate = toFiniteNumber(source?.learning_rate, 0.002);
+  const dropoutRate = toFiniteNumber(source?.dropout_rate, 0.15);
+  const l2Lambda = toFiniteNumber(source?.l2_lambda, 8e-5);
+  const earlyStoppingPatience = Math.trunc(toFiniteNumber(source?.early_stopping_patience, 6));
+  const earlyStoppingMinDelta = toFiniteNumber(source?.early_stopping_min_delta, 0.0005);
+
+  const hiddenLayersSource = source?.hidden_layers;
+  const hiddenLayers = Array.isArray(hiddenLayersSource)
+    ? hiddenLayersSource.map((size) => Math.trunc(toFiniteNumber(size, 0))).filter((size) => size > 0)
+    : [64, 32, 16];
+
+  const optimizer = source?.optimizer === "rmsprop" ? "rmsprop" : "adam";
 
   if (epochs < 10 || epochs > 400) {
     throw new Error("Parâmetro epochs inválido. Use um valor entre 10 e 400.");
@@ -211,10 +185,41 @@ function normalizeAndValidateTrainPayload(payload: unknown): TrainPayload {
     throw new Error("Parâmetro test_size inválido. Use um valor entre 0.1 e 0.4.");
   }
 
+  if (learningRate < 0.0001 || learningRate > 0.02) {
+    throw new Error("Parâmetro learning_rate inválido. Use um valor entre 0.0001 e 0.02.");
+  }
+
+  if (hiddenLayers.length < 2 || hiddenLayers.length > 4 || hiddenLayers.some((size) => size < 8 || size > 256)) {
+    throw new Error("Parâmetro hidden_layers inválido. Use de 2 a 4 camadas, com valores entre 8 e 256.");
+  }
+
+  if (dropoutRate < 0 || dropoutRate > 0.5) {
+    throw new Error("Parâmetro dropout_rate inválido. Use um valor entre 0 e 0.5.");
+  }
+
+  if (l2Lambda < 0 || l2Lambda > 0.01) {
+    throw new Error("Parâmetro l2_lambda inválido. Use um valor entre 0 e 0.01.");
+  }
+
+  if (earlyStoppingPatience < 0 || earlyStoppingPatience > 20) {
+    throw new Error("Parâmetro early_stopping_patience inválido. Use um valor entre 0 e 20.");
+  }
+
+  if (earlyStoppingMinDelta < 0 || earlyStoppingMinDelta > 0.01) {
+    throw new Error("Parâmetro early_stopping_min_delta inválido. Use um valor entre 0 e 0.01.");
+  }
+
   return {
     epochs,
     batch_size: batchSize,
     test_size: testSize,
+    learning_rate: learningRate,
+    hidden_layers: hiddenLayers,
+    dropout_rate: dropoutRate,
+    l2_lambda: l2Lambda,
+    optimizer,
+    early_stopping_patience: earlyStoppingPatience,
+    early_stopping_min_delta: earlyStoppingMinDelta,
   };
 }
 
@@ -233,6 +238,127 @@ function normalizeAndValidatePredictPayload(payload: unknown): PredictPayload {
   };
 }
 
+function encodeMatch(homeIndex: number, awayIndex: number, teamCount: number): number[] {
+  const vector = new Array(teamCount * 2).fill(0);
+  vector[homeIndex] = 1;
+  vector[teamCount + awayIndex] = 1;
+  return vector;
+}
+
+function oneHotLabel(target: number): number[] {
+  return [target === 0 ? 1 : 0, target === 1 ? 1 : 0, target === 2 ? 1 : 0];
+}
+
+function toEncodedDataset(samples: EncodedSample[], teamCount: number): EncodedDataset {
+  return {
+    xs: samples.map((sample) => encodeMatch(sample.home, sample.away, teamCount)),
+    ys: samples.map((sample) => oneHotLabel(sample.target)),
+  };
+}
+
+function createOptimizer(name: TrainPayload["optimizer"], learningRate: number): tf.Optimizer {
+  if (name === "rmsprop") {
+    return tf.train.rmsprop(learningRate);
+  }
+
+  return tf.train.adam(learningRate);
+}
+
+function createModel(inputSize: number, params: TrainPayload): tf.LayersModel {
+  const regularizer = tf.regularizers.l2({ l2: params.l2_lambda });
+  const model = tf.sequential();
+  const modelId = Date.now().toString(36);
+
+  params.hidden_layers.forEach((units, index) => {
+    model.add(
+      tf.layers.dense({
+        name: `dense_hidden_${index + 1}_${modelId}`,
+        units,
+        activation: "relu",
+        kernelInitializer: "heNormal",
+        kernelRegularizer: regularizer,
+        ...(index === 0 ? { inputShape: [inputSize] } : {}),
+      }),
+    );
+
+    if (params.dropout_rate > 0 && index < params.hidden_layers.length - 1) {
+      model.add(tf.layers.dropout({ rate: params.dropout_rate, name: `dropout_${index + 1}_${modelId}` }));
+    }
+  });
+
+  model.add(tf.layers.dense({ name: `dense_output_${modelId}`, units: 3, activation: "softmax" }));
+
+  model.compile({
+    optimizer: createOptimizer(params.optimizer, params.learning_rate),
+    loss: "categoricalCrossentropy",
+    metrics: ["accuracy"],
+  });
+
+  return model;
+}
+
+async function ensureModelLoaded(): Promise<void> {
+  if (modelLoaded) {
+    return;
+  }
+
+  modelLoaded = true;
+
+  try {
+    const hasState = await fileExists(MODEL_STATE_FILE);
+    if (!hasState) {
+      modelState = null;
+      tfModel = null;
+      return;
+    }
+
+    const rawState = await readFile(MODEL_STATE_FILE, "utf-8");
+    const parsed = JSON.parse(rawState) as PersistedModelState;
+
+    if (!parsed?.metadata || !Array.isArray(parsed.metadata.teams)) {
+      throw new Error("Estado do modelo inválido.");
+    }
+
+    const inputSize = parsed.metadata.teams.length * 2;
+    const loadedModel = createModel(inputSize, normalizeAndValidateTrainPayload({}));
+
+    const tensors = parsed.weightValues.map((values, index) => {
+      const shape = parsed.weightShapes[index];
+      return tf.tensor(values, shape, "float32");
+    });
+
+    loadedModel.setWeights(tensors);
+    tensors.forEach((tensor) => tensor.dispose());
+
+    modelState = parsed.metadata;
+    tfModel = loadedModel;
+  } catch {
+    modelState = null;
+    tfModel = null;
+  }
+}
+
+async function persistModel(state: ModelMetadata, model: tf.LayersModel): Promise<void> {
+  await mkdir(TFJS_MODEL_DIR, { recursive: true });
+
+  const weights = model.getWeights();
+  const weightShapes = weights.map((tensor) => [...tensor.shape]);
+  const weightValues = await Promise.all(
+    weights.map(async (tensor) => {
+      const data = await tensor.data();
+      return Array.from(data);
+    }),
+  );
+
+  const persisted: PersistedModelState = {
+    metadata: state,
+    weightShapes,
+    weightValues,
+  };
+
+  await writeFile(MODEL_STATE_FILE, JSON.stringify(persisted), "utf-8");
+}
+
 async function yieldToEventLoop(): Promise<void> {
   await new Promise<void>((resolve) => {
     setImmediate(() => resolve());
@@ -241,6 +367,18 @@ async function yieldToEventLoop(): Promise<void> {
 
 export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
   await ensureModelLoaded();
+
+  if (trainingStatus.in_progress) {
+    const isStaleTraining =
+      trainingStatus.current_epoch === 0 &&
+      trainingStatus.history.accuracy.length === 0 &&
+      Date.now() - trainingStartedAtMs > 30_000;
+
+    if (isStaleTraining) {
+      trainingStatus.in_progress = false;
+      trainingStatus.progress = 0;
+    }
+  }
 
   if (trainingStatus.in_progress) {
     throw new Error("Já existe um treinamento em andamento.");
@@ -269,9 +407,9 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
     })
     .filter((row): row is { homeTeam: string; awayTeam: string; target: number } => row !== null);
 
-  const teams = Array.from(
-    new Set(cleanedRows.flatMap((row) => [row.homeTeam, row.awayTeam])),
-  ).sort((left, right) => left.localeCompare(right));
+  const teams = Array.from(new Set(cleanedRows.flatMap((row) => [row.homeTeam, row.awayTeam]))).sort((left, right) =>
+    left.localeCompare(right),
+  );
 
   if (teams.length === 0 || cleanedRows.length < 4) {
     throw new Error("Base insuficiente para treinamento.");
@@ -301,87 +439,86 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
 
   const teamCount = teams.length;
   const featureCount = teamCount * 2;
-  const classCount = 3;
 
-  const weights = Array.from({ length: featureCount }, () => {
-    return Array.from({ length: classCount }, () => (Math.random() - 0.5) * 0.01);
-  });
-  const bias = [0, 0, 0];
+  const trainDataset = toEncodedDataset(trainSamples, teamCount);
+  const testDataset = toEncodedDataset(testSamples, teamCount);
 
-  resetTrainingStatus(params.epochs);
-  const baseLearningRate = 0.08;
+  const effectiveEpochs = Math.min(params.epochs, FAST_MODE_MAX_EPOCHS);
+  resetTrainingStatus(effectiveEpochs);
+
+  let xsTrain: tf.Tensor2D | null = null;
+  let ysTrain: tf.Tensor2D | null = null;
+  let xsTest: tf.Tensor2D | null = null;
+  let ysTest: tf.Tensor2D | null = null;
+  let model: tf.LayersModel | null = null;
 
   try {
-    for (let epoch = 1; epoch <= params.epochs; epoch += 1) {
-      const learningRate = baseLearningRate / (1 + epoch * 0.015);
+    xsTrain = tf.tensor2d(trainDataset.xs, [trainDataset.xs.length, featureCount], "float32");
+    ysTrain = tf.tensor2d(trainDataset.ys, [trainDataset.ys.length, 3], "float32");
+    xsTest = tf.tensor2d(testDataset.xs, [testDataset.xs.length, featureCount], "float32");
+    ysTest = tf.tensor2d(testDataset.ys, [testDataset.ys.length, 3], "float32");
 
-      for (let batchStart = 0; batchStart < trainSamples.length; batchStart += params.batch_size) {
-        const batch = trainSamples.slice(batchStart, batchStart + params.batch_size);
-        const gradBias = [0, 0, 0];
-        const gradWeights = new Map<number, number[]>();
-
-        for (const sample of batch) {
-          const homeIndex = sample.home;
-          const awayIndex = teamCount + sample.away;
-
-          const logits = [0, 1, 2].map((classIndex) => {
-            return bias[classIndex] + weights[homeIndex][classIndex] + weights[awayIndex][classIndex];
-          });
-
-          const probs = stableSoftmax(logits);
-
-          for (let classIndex = 0; classIndex < classCount; classIndex += 1) {
-            const error = probs[classIndex] - (sample.target === classIndex ? 1 : 0);
-            gradBias[classIndex] += error;
-
-            const homeGrad = gradWeights.get(homeIndex) ?? [0, 0, 0];
-            homeGrad[classIndex] += error;
-            gradWeights.set(homeIndex, homeGrad);
-
-            const awayGrad = gradWeights.get(awayIndex) ?? [0, 0, 0];
-            awayGrad[classIndex] += error;
-            gradWeights.set(awayIndex, awayGrad);
-          }
-        }
-
-        const batchSize = Math.max(batch.length, 1);
-        for (let classIndex = 0; classIndex < classCount; classIndex += 1) {
-          bias[classIndex] -= (learningRate * gradBias[classIndex]) / batchSize;
-        }
-
-        for (const [featureIndex, featureGrad] of gradWeights.entries()) {
-          for (let classIndex = 0; classIndex < classCount; classIndex += 1) {
-            weights[featureIndex][classIndex] -= (learningRate * featureGrad[classIndex]) / batchSize;
-          }
-        }
-      }
-
-      const trainMetrics = computeMetrics(trainSamples, weights, bias, teamCount);
-      const testMetrics = computeMetrics(testSamples, weights, bias, teamCount);
-
-      trainingStatus.current_epoch = epoch;
-      trainingStatus.total_epochs = params.epochs;
-      trainingStatus.progress = Number(((epoch / params.epochs) * 100).toFixed(2));
-      trainingStatus.history.accuracy.push(trainMetrics.accuracy);
-      trainingStatus.history.val_accuracy.push(testMetrics.accuracy);
-      trainingStatus.history.loss.push(trainMetrics.loss);
-      trainingStatus.history.val_loss.push(testMetrics.loss);
-
-      await yieldToEventLoop();
+    if (tfModel) {
+      tfModel.dispose();
+      tfModel = null;
     }
+    tf.disposeVariables();
+
+    model = createModel(featureCount, params);
+    let bestValLoss = Number.POSITIVE_INFINITY;
+    let noImprovementEpochs = 0;
+
+    await model.fit(xsTrain, ysTrain, {
+      epochs: effectiveEpochs,
+      batchSize: params.batch_size,
+      validationData: [xsTest, ysTest],
+      shuffle: true,
+      callbacks: {
+        onEpochEnd: async (epoch: number, logs?: tf.Logs) => {
+          const trainAccuracy = toNonNegativeMetric(logs?.acc ?? logs?.accuracy);
+          const validAccuracy = toNonNegativeMetric(logs?.val_acc ?? logs?.val_accuracy);
+          const trainLoss = toNonNegativeMetric(logs?.loss);
+          const validLoss = toNonNegativeMetric(logs?.val_loss);
+
+          trainingStatus.current_epoch = epoch + 1;
+          trainingStatus.total_epochs = effectiveEpochs;
+          trainingStatus.progress = Number((((epoch + 1) / effectiveEpochs) * 100).toFixed(2));
+          trainingStatus.history.accuracy.push(trainAccuracy);
+          trainingStatus.history.val_accuracy.push(validAccuracy);
+          trainingStatus.history.loss.push(trainLoss);
+          trainingStatus.history.val_loss.push(validLoss);
+
+          if (params.early_stopping_patience > 0 && validLoss > 0) {
+            if (validLoss < bestValLoss - params.early_stopping_min_delta) {
+              bestValLoss = validLoss;
+              noImprovementEpochs = 0;
+            } else {
+              noImprovementEpochs += 1;
+              if (noImprovementEpochs >= params.early_stopping_patience) {
+                const stoppableModel = model as tf.LayersModel & { stopTraining?: boolean };
+                stoppableModel.stopTraining = true;
+                trainingStatus.total_epochs = epoch + 1;
+              }
+            }
+          }
+
+          await yieldToEventLoop();
+        },
+      },
+    });
 
     const finalTestAccuracy = trainingStatus.history.val_accuracy.at(-1) ?? 0;
     const version = new Date().toISOString();
 
     modelState = {
       teams,
-      weights,
-      bias,
       version,
       test_accuracy: finalTestAccuracy,
     };
 
-    await persistModel(modelState);
+    await persistModel(modelState, model);
+
+    tfModel = model;
 
     trainingStatus.in_progress = false;
     trainingStatus.progress = 100;
@@ -394,8 +531,15 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
       history: trainingStatus.history,
     };
   } catch (error) {
+    model?.dispose();
     trainingStatus.in_progress = false;
+    trainingStatus.progress = 0;
     throw error;
+  } finally {
+    xsTrain?.dispose();
+    ysTrain?.dispose();
+    xsTest?.dispose();
+    ysTest?.dispose();
   }
 }
 
@@ -426,7 +570,7 @@ export async function nodeGetModelInfo(): Promise<ModelInfo> {
 export async function nodePredict(payload: unknown): Promise<PredictResult> {
   await ensureModelLoaded();
 
-  if (!modelState) {
+  if (!modelState || !tfModel) {
     throw new Error("Modelo não treinado. Execute /train primeiro.");
   }
 
@@ -439,16 +583,17 @@ export async function nodePredict(payload: unknown): Promise<PredictResult> {
   }
 
   const homeIndex = teamToIndex.get(params.mandante) ?? 0;
-  const awayIndex = modelState.teams.length + (teamToIndex.get(params.visitante) ?? 0);
+  const awayIndex = teamToIndex.get(params.visitante) ?? 0;
+  const encoded = encodeMatch(homeIndex, awayIndex, modelState.teams.length);
 
-  const logits = [0, 1, 2].map((classIndex) => {
-    return (
-      modelState!.bias[classIndex] +
-      modelState!.weights[homeIndex][classIndex] +
-      modelState!.weights[awayIndex][classIndex]
-    );
-  });
-  const probabilities = stableSoftmax(logits);
+  const input = tf.tensor2d([encoded], [1, encoded.length], "float32");
+  const output = tfModel.predict(input) as tf.Tensor;
+  const probabilityData = await output.data();
+  const probabilities = Array.from(probabilityData);
+
+  input.dispose();
+  output.dispose();
+
   const topIndex = argMax(probabilities);
 
   return {
