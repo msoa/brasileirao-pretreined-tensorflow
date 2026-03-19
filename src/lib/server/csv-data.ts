@@ -43,7 +43,7 @@ export function getMatchYear(match: MatchRow): string {
 }
 
 function resolveDataPath(fileName: string): string {
-  return path.resolve(process.cwd(), "..", "data", fileName);
+  return path.resolve(process.cwd(), "data", fileName);
 }
 
 async function loadCsvFile<T extends Record<string, string>>(fileName: string): Promise<T[]> {
