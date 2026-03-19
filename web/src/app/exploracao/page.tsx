@@ -47,7 +47,7 @@ function AccordionChevron() {
       aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
-      className="h-4 w-4 text-black/60 transition-transform group-open:rotate-180 dark:text-white/60"
+      className="accordion-arrow h-4 w-4 transition-transform group-open:rotate-180"
     >
       <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
@@ -340,15 +340,15 @@ export function ExploracaoContent() {
 
   return (
     <>
-      <section className="rounded-xl border border-black/10 p-4 dark:border-white/20">
+      <section className="card-neon">
         <h2 className="text-base font-semibold">Filtros</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <label className="text-sm">
-            <span className="mb-1 block text-black/70 dark:text-white/70">Ano (obrigatório)</span>
+            <span className="mb-1 block text-muted">Ano (obrigatório)</span>
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(event.target.value)}
-              className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
+              className="select-neon"
             >
               {years.map((year) => (
                 <option key={year} value={year}>
@@ -359,11 +359,11 @@ export function ExploracaoContent() {
           </label>
 
           <label className="text-sm">
-            <span className="mb-1 block text-black/70 dark:text-white/70">Time (opcional)</span>
+            <span className="mb-1 block text-muted">Time (opcional)</span>
             <select
               value={selectedTeam}
               onChange={(event) => setSelectedTeam(event.target.value)}
-              className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
+              className="select-neon"
             >
               <option value="">Todos</option>
               {teams.map((team) => (
@@ -378,7 +378,7 @@ export function ExploracaoContent() {
             <button
               type="button"
               onClick={() => void loadMatches()}
-              className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+              className="btn-primary"
             >
               Aplicar
             </button>
@@ -386,35 +386,35 @@ export function ExploracaoContent() {
         </div>
       </section>
 
-      <details className="group mt-4 rounded-xl border border-black/10 p-4 text-sm dark:border-white/20">
+      <details className="group mt-4 card-neon text-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
           <span>Resumo geral</span>
           <AccordionChevron />
         </summary>
         <div className="mt-3 grid gap-4 sm:grid-cols-3">
-          <article className="rounded-xl border border-black/10 p-4 dark:border-white/20">
-            <p className="text-sm text-black/70 dark:text-white/70">Partidas</p>
+          <article className="card-neon">
+            <p className="text-sm text-muted">Partidas</p>
             <p className="text-2xl font-semibold">{stats.total}</p>
           </article>
-          <article className="rounded-xl border border-black/10 p-4 dark:border-white/20">
-            <p className="text-sm text-black/70 dark:text-white/70">Rodadas</p>
+          <article className="card-neon">
+            <p className="text-sm text-muted">Rodadas</p>
             <p className="text-2xl font-semibold">{stats.rounds}</p>
           </article>
-          <article className="rounded-xl border border-black/10 p-4 dark:border-white/20">
-            <p className="text-sm text-black/70 dark:text-white/70">Jogos decididos (sem empate)</p>
+          <article className="card-neon">
+            <p className="text-sm text-muted">Jogos decididos (sem empate)</p>
             <p className="text-2xl font-semibold">{stats.wins}</p>
           </article>
         </div>
       </details>
 
       {selectedTeam && teamStatus ? (
-        <details className="group mt-4 rounded-xl border border-black/10 p-4 text-sm dark:border-white/20">
+        <details className="group mt-4 card-neon text-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
             <span>Status do time filtrado</span>
             <AccordionChevron />
           </summary>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-black/80 dark:text-white/80">{selectedTeam}</span>
+            <span className="text-muted">{selectedTeam}</span>
             <span
               className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(teamStatus.type)}`}
             >
@@ -425,37 +425,37 @@ export function ExploracaoContent() {
           {teamSummary ? (
             <div className="mt-4 space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
-                <article className="rounded-lg border border-black/10 p-3 dark:border-white/15">
-                  <p className="text-xs text-black/70 dark:text-white/70">Gols feitos</p>
+                <article className="card-neon-sm">
+                  <p className="text-xs text-muted">Gols feitos</p>
                   <p className="text-lg font-semibold">{teamSummary.goalsFor}</p>
                 </article>
-                <article className="rounded-lg border border-black/10 p-3 dark:border-white/15">
-                  <p className="text-xs text-black/70 dark:text-white/70">Gols recebidos</p>
+                <article className="card-neon-sm">
+                  <p className="text-xs text-muted">Gols recebidos</p>
                   <p className="text-lg font-semibold">{teamSummary.goalsAgainst}</p>
                 </article>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <article className="rounded-lg border border-black/10 p-3 dark:border-white/15">
-                  <p className="text-xs text-black/70 dark:text-white/70">Partidas vencidas</p>
+                <article className="card-neon-sm">
+                  <p className="text-xs text-muted">Partidas vencidas</p>
                   <p className="text-lg font-semibold">{teamSummary.matchesWon}</p>
                 </article>
-                <article className="rounded-lg border border-black/10 p-3 dark:border-white/15">
-                  <p className="text-xs text-black/70 dark:text-white/70">Partidas empatadas</p>
+                <article className="card-neon-sm">
+                  <p className="text-xs text-muted">Partidas empatadas</p>
                   <p className="text-lg font-semibold">{teamSummary.matchesDrawn}</p>
                 </article>
-                <article className="rounded-lg border border-black/10 p-3 dark:border-white/15">
-                  <p className="text-xs text-black/70 dark:text-white/70">Partidas perdidas</p>
+                <article className="card-neon-sm">
+                  <p className="text-xs text-muted">Partidas perdidas</p>
                   <p className="text-lg font-semibold">{teamSummary.matchesLost}</p>
                 </article>
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-black/70 dark:text-white/70">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                   Top 3 artilheiros
                 </p>
                 {teamSummary.topScorers.length === 0 ? (
-                  <p className="mt-1 text-sm text-black/70 dark:text-white/70">Sem gols registrados para o time.</p>
+                  <p className="mt-1 text-sm text-muted">Sem gols registrados para o time.</p>
                 ) : (
                   <ul className="mt-2 space-y-1">
                     {teamSummary.topScorers.map((scorer, index) => (
@@ -472,15 +472,15 @@ export function ExploracaoContent() {
         </details>
       ) : null}
 
-      <details className="group mt-4 rounded-xl border border-black/10 p-4 text-sm dark:border-white/20">
+      <details className="group mt-4 card-neon text-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
           <span>Top 4 times do ano selecionado</span>
           <AccordionChevron />
         </summary>
         {loading ? (
-          <p className="mt-2 text-sm text-black/70 dark:text-white/70">Carregando...</p>
+          <p className="mt-2 text-sm text-muted">Carregando...</p>
         ) : topFourTeams.length === 0 ? (
-          <p className="mt-2 text-sm text-black/70 dark:text-white/70">Sem classificação disponível para o ano.</p>
+          <p className="mt-2 text-sm text-muted">Sem classificação disponível para o ano.</p>
         ) : (
           <div className="mt-3 space-y-2">
             {topFourTeams.map((team, index) => {
@@ -491,7 +491,7 @@ export function ExploracaoContent() {
               return (
                 <details
                   key={team.team}
-                  className="group rounded-lg border border-black/10 px-3 py-2 dark:border-white/15"
+                  className="group card-neon-sm"
                 >
                   <summary className="cursor-pointer list-none">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -499,43 +499,43 @@ export function ExploracaoContent() {
                         {position}. {team.team}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-black/70 dark:text-white/70">{getRankLabel(position)}</span>
+                        <span className="text-xs text-muted">{getRankLabel(position)}</span>
                         <AccordionChevron />
                       </div>
                     </div>
                   </summary>
 
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Pontos</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Pontos</p>
                       <p className="font-semibold">{team.points}</p>
                     </div>
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Jogos</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Jogos</p>
                       <p className="font-semibold">{team.played}</p>
                     </div>
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Vitórias</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Vitórias</p>
                       <p className="font-semibold">{team.wins}</p>
                     </div>
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Empates</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Empates</p>
                       <p className="font-semibold">{draws}</p>
                     </div>
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Derrotas</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Derrotas</p>
                       <p className="font-semibold">{losses}</p>
                     </div>
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Saldo de gols</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Saldo de gols</p>
                       <p className="font-semibold">{team.goalDiff}</p>
                     </div>
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Gols marcados</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Gols marcados</p>
                       <p className="font-semibold">{team.goalsFor}</p>
                     </div>
-                    <div className="rounded-md border border-black/10 px-2 py-2 dark:border-white/15">
-                      <p className="text-xs text-black/70 dark:text-white/70">Gols sofridos</p>
+                    <div className="card-neon-sm">
+                      <p className="text-xs text-muted">Gols sofridos</p>
                       <p className="font-semibold">{team.goalsAgainst}</p>
                     </div>
                   </div>
@@ -546,16 +546,16 @@ export function ExploracaoContent() {
         )}
       </details>
 
-      <details className="group mt-4 rounded-xl border border-black/10 p-4 text-sm dark:border-white/20">
+      <details className="group mt-4 card-neon text-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
           <span>Rodadas x Jogos</span>
           <AccordionChevron />
         </summary>
 
         {loading ? (
-          <div className="mt-3 rounded-xl border border-black/10 p-4 text-sm dark:border-white/20">Carregando...</div>
+          <div className="mt-3 card-neon">Carregando...</div>
         ) : groupedByRound.length === 0 ? (
-          <div className="mt-3 rounded-xl border border-black/10 p-4 text-sm dark:border-white/20">
+          <div className="mt-3 card-neon">
             Nenhuma partida encontrada para os filtros selecionados.
           </div>
         ) : (
@@ -585,11 +585,11 @@ export function ExploracaoContent() {
                       return (
                         <td key={`${group.round}-${gameIndex}`} className="align-top px-3 py-2">
                         {match ? (
-                          <div className="rounded-md border border-black/10 px-2 py-2 text-xs dark:border-white/15">
+                          <div className="card-neon-sm text-sm">
                             <div className="font-semibold">
                               {match.mandante} {match.mandante_Placar}x{match.visitante_Placar} {match.visitante}
                             </div>
-                            <div className="mt-1 text-black/70 dark:text-white/70">{match.data}</div>
+                            <div className="mt-1 text-muted">{match.data}</div>
                           </div>
                         ) : (
                           <span className="text-black/40 dark:text-white/40">—</span>
@@ -610,7 +610,7 @@ export function ExploracaoContent() {
 
 export default function ExploracaoPage() {
   return (
-    <AppShell title="Exploração de dados">
+    <AppShell>
       <ExploracaoContent />
     </AppShell>
   );

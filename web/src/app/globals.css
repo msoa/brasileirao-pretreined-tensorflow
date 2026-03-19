@@ -1,26 +1,80 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #111315;
+  --card-background: #1a1f22;
+  --accent: #2dd4bf;
+  --accent-secondary: #34d399;
+  --foreground: #e5e7eb;
+  --border-subtle: rgba(45, 212, 191, 0.35);
+  --text-subtle: #9ca3af;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-border: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  .card-neon {
+    @apply rounded-xl border p-4;
+    background: var(--card-background);
+    border-color: var(--border-subtle);
+  }
+
+  .text-muted {
+    color: var(--text-subtle);
+  }
+
+  .card-neon-sm {
+    @apply rounded-lg border p-3;
+    background: var(--card-background);
+    border-color: var(--border-subtle);
+  }
+
+  .btn-primary {
+    @apply rounded-md border px-4 py-2 text-sm font-semibold transition disabled:opacity-60;
+    background: var(--accent);
+    color: #0b1417;
+    border-color: transparent;
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.06);
+  }
+
+  .select-neon {
+    @apply w-full appearance-none rounded-md border px-3 py-2 pr-10;
+    background-color: var(--card-background);
+    border-color: var(--border-subtle);
+    color: var(--foreground);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%232dd4bf' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 14px 14px;
+  }
+
+  .select-neon:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.22);
+  }
+
+  .select-neon option {
+    background: var(--card-background);
+    color: var(--foreground);
+  }
+
+  .accordion-arrow {
+    color: var(--accent-secondary);
+  }
 }

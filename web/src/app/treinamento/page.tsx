@@ -8,7 +8,7 @@ import {
 
 export default function TreinamentoPage() {
   return (
-    <AppShell title="Treinamento">
+    <AppShell>
       <TreinamentoProvider>
         <TreinamentoContent />
         <TreinamentoChartsContent className="mt-4" />

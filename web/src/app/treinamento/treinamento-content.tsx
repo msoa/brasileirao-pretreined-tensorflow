@@ -88,9 +88,9 @@ function TrainingLineChart(props: LineChartProps) {
 
   if (values.length === 0) {
     return (
-      <article className="rounded-xl border border-black/10 p-4 dark:border-white/20">
+      <article className="card-neon">
         <h4 className="text-sm font-semibold">{title}</h4>
-        <p className="mt-2 text-sm text-black/70 dark:text-white/70">Sem dados de treino nesta sessão.</p>
+        <p className="mt-2 text-sm text-muted">Sem dados de treino nesta sessão.</p>
       </article>
     );
   }
@@ -122,7 +122,7 @@ function TrainingLineChart(props: LineChartProps) {
   const pathB = toPath(seriesB, minValue, maxValue, chartWidth, chartHeight);
 
   return (
-    <article className="rounded-xl border border-black/10 p-4 dark:border-white/20">
+    <article className="card-neon">
       <h4 className="text-sm font-semibold">{title}</h4>
       <div className="mt-3 overflow-x-auto">
         <svg
@@ -137,9 +137,9 @@ function TrainingLineChart(props: LineChartProps) {
               y1={chartHeight}
               x2={chartWidth}
               y2={chartHeight}
-              className="stroke-black/30 dark:stroke-white/30"
+              style={{ stroke: "var(--border-subtle)" }}
             />
-            <line x1="0" y1="0" x2="0" y2={chartHeight} className="stroke-black/30 dark:stroke-white/30" />
+            <line x1="0" y1="0" x2="0" y2={chartHeight} style={{ stroke: "var(--border-subtle)" }} />
             {pathA ? <path d={pathA} className="fill-none stroke-[2] stroke-sky-600 dark:stroke-sky-400" /> : null}
             {pathB ? <path d={pathB} className="fill-none stroke-[2] stroke-amber-600 dark:stroke-amber-400" /> : null}
           </g>
@@ -153,9 +153,9 @@ function TrainingLineChart(props: LineChartProps) {
                   y1={y}
                   x2={svgWidth - marginRight}
                   y2={y}
-                  className="stroke-black/10 dark:stroke-white/10"
+                  style={{ stroke: "var(--border-subtle)" }}
                 />
-                <text x={marginLeft - 8} y={y + 4} textAnchor="end" className="fill-black/60 text-[10px] dark:fill-white/60">
+                <text x={marginLeft - 8} y={y + 4} textAnchor="end" className="text-[10px]" style={{ fill: "var(--text-subtle)" }}>
                   {formatter(tickValue)}
                 </text>
               </g>
@@ -174,13 +174,14 @@ function TrainingLineChart(props: LineChartProps) {
                   y1={marginTop + chartHeight}
                   x2={x}
                   y2={marginTop + chartHeight + 5}
-                  className="stroke-black/30 dark:stroke-white/30"
+                  style={{ stroke: "var(--border-subtle)" }}
                 />
                 <text
                   x={x}
                   y={marginTop + chartHeight + 18}
                   textAnchor="middle"
-                  className="fill-black/60 text-[10px] dark:fill-white/60"
+                  className="text-[10px]"
+                  style={{ fill: "var(--text-subtle)" }}
                 >
                   {`Época ${tickEpoch}`}
                 </text>
@@ -189,7 +190,7 @@ function TrainingLineChart(props: LineChartProps) {
           })}
         </svg>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-black/80 dark:text-white/80">
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted">
         <span className="inline-flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-sky-600 dark:bg-sky-400" />
           {seriesALabel}
@@ -199,7 +200,7 @@ function TrainingLineChart(props: LineChartProps) {
           {seriesBLabel}
         </span>
       </div>
-      <div className="mt-2 grid gap-2 text-xs text-black/70 dark:text-white/70 sm:grid-cols-2">
+      <div className="mt-2 grid gap-2 text-xs text-muted sm:grid-cols-2">
         <p>Início: {formatter(values[0])}</p>
         <p>Final: {formatter(values[values.length - 1])}</p>
       </div>
@@ -316,34 +317,36 @@ export function TreinamentoContent() {
 
   return (
     <>
-      <section className="rounded-xl border border-black/10 p-4 dark:border-white/20">
+      <section className="card-neon">
         <h2 className="text-base font-semibold">Configuração do treino</h2>
         <div className="mt-3">
           <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-3">
             <label className="text-sm">
-              <span className="mb-1 block text-black/70 dark:text-white/70">Épocas</span>
+              <span className="mb-1 block text-muted">Épocas</span>
               <input
                 type="number"
                 min={10}
                 max={400}
                 value={epochs}
                 onChange={(event) => setEpochs(Number(event.target.value))}
-                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
+                className="w-full rounded-md border bg-transparent px-3 py-2"
+                style={{ borderColor: "var(--border-subtle)" }}
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-black/70 dark:text-white/70">Batch size</span>
+              <span className="mb-1 block text-muted">Batch size</span>
               <input
                 type="number"
                 min={8}
                 max={128}
                 value={batchSize}
                 onChange={(event) => setBatchSize(Number(event.target.value))}
-                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
+                className="w-full rounded-md border bg-transparent px-3 py-2"
+                style={{ borderColor: "var(--border-subtle)" }}
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-black/70 dark:text-white/70">Teste (%)</span>
+              <span className="mb-1 block text-muted">Teste (%)</span>
               <input
                 type="number"
                 step={0.05}
@@ -351,7 +354,8 @@ export function TreinamentoContent() {
                 max={0.4}
                 value={testSize}
                 onChange={(event) => setTestSize(Number(event.target.value))}
-                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
+                className="w-full rounded-md border bg-transparent px-3 py-2"
+                style={{ borderColor: "var(--border-subtle)" }}
               />
             </label>
             <div className="sm:col-span-3">
@@ -359,25 +363,28 @@ export function TreinamentoContent() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
+                  className="btn-primary"
                 >
                   {loading ? "Treinando..." : "Iniciar treinamento"}
                 </button>
 
                 <div className="min-w-[220px] flex-1">
-                  <div className="h-3 w-full overflow-hidden rounded-full border border-black/15 bg-black/5 dark:border-white/20 dark:bg-white/10">
+                  <div
+                    className="h-3 w-full overflow-hidden rounded-full border"
+                    style={{ borderColor: "var(--border-subtle)", backgroundColor: "var(--card-background)" }}
+                  >
                     <div
-                      className="h-full bg-black/80 transition-all duration-500 dark:bg-white/80"
-                      style={{ width: `${trainingProgress}%` }}
+                      className="h-full transition-all duration-500"
+                      style={{ width: `${trainingProgress}%`, backgroundColor: "var(--accent)" }}
                     />
                   </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-black/70 dark:text-white/70">
+                  <div className="mt-1 flex items-center justify-between text-xs text-muted">
                     <span>
                       {loading
                         ? `Treinando${liveStatus ? ` (época ${liveStatus.current_epoch}/${liveStatus.total_epochs})` : ""}`
                         : "Aguardando novo treino"}
                     </span>
-                    <strong className="text-black/80 dark:text-white/80">{trainingProgress}%</strong>
+                    <strong className="text-foreground">{trainingProgress}%</strong>
                   </div>
                 </div>
               </div>
@@ -386,16 +393,16 @@ export function TreinamentoContent() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-xl border border-black/10 p-4 dark:border-white/20">
+      <section className="card-neon mt-4">
         <h3 className="text-base font-semibold">Resultado</h3>
         {error ? <p className="mt-2 text-sm">Erro: {error}</p> : null}
         {result ? (
-          <ul className="mt-2 space-y-1 text-sm text-black/80 dark:text-white/80">
+          <ul className="mt-2 space-y-1 text-sm text-muted">
             <li>Acurácia de teste: {(result.test_accuracy * 100).toFixed(2)}%</li>
             <li>Times usados: {result.teams}</li>
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-black/70 dark:text-white/70">Nenhum treino executado nesta sessão.</p>
+          <p className="mt-2 text-sm text-muted">Nenhum treino executado nesta sessão.</p>
         )}
       </section>
     </>
@@ -406,7 +413,7 @@ export function TreinamentoChartsContent({ className = "" }: { className?: strin
   const { chartHistory } = useTrainingContext();
 
   return (
-    <section className={`rounded-xl border border-black/10 p-4 dark:border-white/20 ${className}`.trim()}>
+    <section className={`card-neon ${className}`.trim()}>
       <h3 className="text-base font-semibold">Gráficos</h3>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <TrainingLineChart
@@ -433,14 +440,14 @@ export function TreinamentoChartsContent({ className = "" }: { className?: strin
 
 export function TreinamentoAjudaContent({ className = "" }: { className?: string }) {
   return (
-    <details className={`group rounded-xl border border-black/10 p-4 dark:border-white/20 ${className}`.trim()}>
+    <details className={`group card-neon ${className}`.trim()}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold">
         <span>Ajuda</span>
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"
           fill="none"
-          className="h-4 w-4 text-black/60 transition-transform group-open:rotate-180 dark:text-white/60"
+          className="accordion-arrow h-4 w-4 transition-transform group-open:rotate-180"
         >
           <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
@@ -450,27 +457,27 @@ export function TreinamentoAjudaContent({ className = "" }: { className?: string
         <div>
           <h3 className="text-base font-semibold">Base de dados e modelo</h3>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Partidas na base</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Quantidade total de jogos disponíveis para treino e análise no dataset carregado.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Times únicos</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Número de clubes distintos presentes no recorte de dados usado pelo sistema.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Modelo treinado</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Indica se já existe um modelo pronto para inferência. &quot;Sim&quot; habilita previsões imediatas.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Acurácia teste</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Medida do desempenho no conjunto de teste. Quanto maior, melhor a taxa de acerto observada.
               </p>
             </article>
@@ -480,21 +487,21 @@ export function TreinamentoAjudaContent({ className = "" }: { className?: string
         <div>
           <h3 className="text-base font-semibold">Treinamento</h3>
           <div className="mt-2 grid gap-3 md:grid-cols-2">
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Configuração do treino</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Define parâmetros do treinamento: épocas, batch size e percentual de teste.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Barra de progresso</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Mostra andamento da execução e a época atual enquanto o treino está em processamento.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15 md:col-span-2">
+            <article className="card-neon-sm text-sm md:col-span-2">
               <p className="font-semibold">Resultado</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Exibe os indicadores finais do treino da sessão: acurácia de teste e quantidade de times usados.
               </p>
             </article>
@@ -504,23 +511,23 @@ export function TreinamentoAjudaContent({ className = "" }: { className?: string
         <div>
           <h3 className="text-base font-semibold">Previsões</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Predizer partida</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Escolha de mandante e visitante para calcular o desfecho mais provável com o modelo atual.
               </p>
             </article>
 
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Classe prevista</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Resultado principal previsto pelo modelo: MANDANTE, EMPATE ou VISITANTE.
               </p>
             </article>
 
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Probabilidades</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Distribuição percentual em colunas para mandante, empate e visitante.
               </p>
             </article>
@@ -530,15 +537,15 @@ export function TreinamentoAjudaContent({ className = "" }: { className?: string
         <div>
           <h3 className="text-base font-semibold">Gráficos</h3>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Acurácia por época</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Mostra evolução da acurácia em treino e validação ao longo das épocas. Quanto maior, melhor.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Erro (loss) por época</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Mostra redução do erro durante o treino. Quanto menor, melhor, com curvas de treino e validação próximas.
               </p>
             </article>
@@ -548,27 +555,27 @@ export function TreinamentoAjudaContent({ className = "" }: { className?: string
         <div>
           <h3 className="text-base font-semibold">Exploração</h3>
           <div className="mt-2 grid gap-3 md:grid-cols-2">
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Filtros</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Permitem selecionar ano (obrigatório) e time (opcional) para consultar partidas e estatísticas.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Resumo geral</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Consolida quantidade de partidas, rodadas e jogos decididos no recorte atual.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Top 4 e status do time</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Exibe a classificação final dos quatro primeiros e o status do time filtrado no ano selecionado.
               </p>
             </article>
-            <article className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+            <article className="card-neon-sm text-sm">
               <p className="font-semibold">Rodadas x Jogos e detalhes</p>
-              <p className="mt-1 text-black/80 dark:text-white/80">
+              <p className="mt-1 text-muted">
                 Organiza partidas por rodada e mostra placares, vencedores e informações de desempenho por time.
               </p>
             </article>
