@@ -88,6 +88,13 @@ O sistema roda como **aplicação monolítica** no Next.js:
 - Treinamento com early stopping, dropout e regularização L2
 - Persistência de pesos em `.artifacts/` (local)
 
+**Arquivos-chave (ML no backend):**
+- `src/lib/server/ml-training.ts` – orquestra treino, status e predição
+- `src/lib/server/ml-client.ts` – camada de acesso usada pelas rotas `/api/ml/*`
+- `src/lib/server/ml-model.ts` – tipos, contratos e constantes do domínio ML
+- `src/lib/server/ml-storage.ts` – persistência de pesos e metadados em disco
+- `src/lib/server/csv-data.ts` – carga e normalização dos dados CSV
+
 **Fluxo:**
 1. Frontend envia requisição HTTP para rotas internas do Next.js
 2. Backend carrega/normaliza dados, executa treino/predição via TFJS
