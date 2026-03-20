@@ -13,6 +13,12 @@ Projeto acadêmico demonstrando um **pipeline completo de ML aplicado ao futebol
 
 Fluxo rápido: **configure → treine → observe métricas → preveja**.
 
+Este projeto utiliza uma **rede neural MLP (Perceptron Multicamadas)** implementada com TensorFlow.js para classificação de resultados em três classes: vitória da casa, empate e vitória do visitante.
+
+## Contexto acadêmico
+
+Projeto desenvolvido no contexto dos estudos da pós-graduação de **Engenharia de Software com IA Aplicada (UNIPDS)**.
+
 ## 🚀 Projeto em produção
 
 **Acesse:** https://brasileirao-tensorflow.onrender.com/
