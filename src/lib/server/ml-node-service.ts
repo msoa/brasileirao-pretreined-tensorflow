@@ -1,83 +1,29 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
 import * as tf from "@tensorflow/tfjs";
 import { loadMatches } from "@/lib/server/csv-data";
+import {
+  createEmptyTrainingHistory,
+  FAST_MODE_MAX_EPOCHS,
+  MODEL_STATE_FILE,
+  PREDICTION_LABELS,
+  type EncodedDataset,
+  type EncodedSample,
+  type ModelInfo,
+  type ModelMetadata,
+  type PersistedModelState,
+  type PredictData,
+  type PredictResult,
+  type TrainParameters,
+  type TrainResult,
+  type TrainingStatus,
+} from "@/lib/server/ml-model";
+import { loadPersistedModelState, persistModelState } from "@/lib/server/ml-storage";
 
-type TrainPayload = {
-  epochs: number;
-  batch_size: number;
-  test_size: number;
-  learning_rate: number;
-  hidden_layers: number[];
-  dropout_rate: number;
-  l2_lambda: number;
-  optimizer: "adam" | "rmsprop";
-  early_stopping_patience: number;
-  early_stopping_min_delta: number;
-};
-
-type PredictPayload = {
-  mandante: string;
-  visitante: string;
-};
-
-export type TrainingHistory = {
-  accuracy: number[];
-  val_accuracy: number[];
-  loss: number[];
-  val_loss: number[];
-};
-
-type ModelMetadata = {
-  teams: string[];
-  version: string;
-  test_accuracy: number;
-};
-
-export type TrainingStatus = {
-  in_progress: boolean;
-  current_epoch: number;
-  total_epochs: number;
-  progress: number;
-  history: TrainingHistory;
-};
-
-export type ModelInfo = {
-  trained: boolean;
-  version: string;
-  test_accuracy: number;
-  teams: number;
-};
-
-export type TrainResult = {
-  status: string;
-  test_accuracy: number;
-  version: string;
-  teams: number;
-  history: TrainingHistory;
-};
-
-export type PredictResult = {
-  prediction: "MANDANTE" | "EMPATE" | "VISITANTE";
-  probabilities: {
-    MANDANTE: number;
-    EMPATE: number;
-    VISITANTE: number;
-  };
-  model_version: string;
-};
-
-const LABELS = ["MANDANTE", "EMPATE", "VISITANTE"] as const;
-const FAST_MODE_MAX_EPOCHS = 40;
-const ARTIFACTS_DIR = path.resolve(process.cwd(), ".artifacts");
-const TFJS_MODEL_DIR = path.resolve(ARTIFACTS_DIR, "match-predictor-tfjs");
-const MODEL_STATE_FILE = path.resolve(TFJS_MODEL_DIR, "model-state.json");
-
-type PersistedModelState = {
-  metadata: ModelMetadata;
-  weightShapes: number[][];
-  weightValues: number[][];
-};
+export type {
+  ModelInfo,
+  PredictResult,
+  TrainResult,
+  TrainingStatus,
+} from "@/lib/server/ml-model";
 
 let modelState: ModelMetadata | null = null;
 let tfModel: tf.LayersModel | null = null;
@@ -89,23 +35,7 @@ const trainingStatus: TrainingStatus = {
   current_epoch: 0,
   total_epochs: 0,
   progress: 0,
-  history: {
-    accuracy: [],
-    val_accuracy: [],
-    loss: [],
-    val_loss: [],
-  },
-};
-
-type EncodedSample = {
-  home: number;
-  away: number;
-  target: number;
-};
-
-type EncodedDataset = {
-  xs: number[][];
-  ys: number[][];
+  history: createEmptyTrainingHistory(),
 };
 
 function resetTrainingStatus(totalEpochs: number): void {
@@ -114,12 +44,7 @@ function resetTrainingStatus(totalEpochs: number): void {
   trainingStatus.current_epoch = 0;
   trainingStatus.total_epochs = totalEpochs;
   trainingStatus.progress = 0;
-  trainingStatus.history = {
-    accuracy: [],
-    val_accuracy: [],
-    loss: [],
-    val_loss: [],
-  };
+  trainingStatus.history = createEmptyTrainingHistory();
 }
 
 function argMax(values: number[]): number {
@@ -141,22 +66,13 @@ function toNonNegativeMetric(value: unknown): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await stat(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function toFiniteNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function normalizeAndValidateTrainPayload(payload: unknown): TrainPayload {
-  const source = payload as Partial<TrainPayload>;
+function normalizeAndValidateTrainParameters(payload: unknown): TrainParameters {
+  const source = payload as Partial<TrainParameters>;
   const epochs = Math.trunc(toFiniteNumber(source?.epochs, 40));
   const batchSize = Math.trunc(toFiniteNumber(source?.batch_size, 32));
   const testSize = toFiniteNumber(source?.test_size, 0.2);
@@ -223,22 +139,22 @@ function normalizeAndValidateTrainPayload(payload: unknown): TrainPayload {
   };
 }
 
-function normalizeAndValidatePredictPayload(payload: unknown): PredictPayload {
-  const source = payload as Partial<PredictPayload>;
-  const mandante = `${source?.mandante ?? ""}`.trim();
-  const visitante = `${source?.visitante ?? ""}`.trim();
+function normalizeAndValidatePredictData(payload: unknown): PredictData {
+  const source = payload as Partial<PredictData>;
+  const homeTeam = `${source?.homeTeam ?? ""}`.trim();
+  const awayTeam = `${source?.awayTeam ?? ""}`.trim();
 
-  if (!mandante || !visitante) {
-    throw new Error("Parâmetros mandante e visitante são obrigatórios.");
+  if (!homeTeam || !awayTeam) {
+    throw new Error("Parâmetros homeTeam e awayTeam são obrigatórios.");
   }
 
   return {
-    mandante,
-    visitante,
+    homeTeam,
+    awayTeam,
   };
 }
 
-function encodeMatch(homeIndex: number, awayIndex: number, teamCount: number): number[] {
+function createMatchFeatureVector(homeIndex: number, awayIndex: number, teamCount: number): number[] {
   const vector = new Array(teamCount * 2).fill(0);
   vector[homeIndex] = 1;
   vector[teamCount + awayIndex] = 1;
@@ -249,14 +165,14 @@ function oneHotLabel(target: number): number[] {
   return [target === 0 ? 1 : 0, target === 1 ? 1 : 0, target === 2 ? 1 : 0];
 }
 
-function toEncodedDataset(samples: EncodedSample[], teamCount: number): EncodedDataset {
+function createEncodedDataset(samples: EncodedSample[], teamCount: number): EncodedDataset {
   return {
-    xs: samples.map((sample) => encodeMatch(sample.home, sample.away, teamCount)),
+    xs: samples.map((sample) => createMatchFeatureVector(sample.home, sample.away, teamCount)),
     ys: samples.map((sample) => oneHotLabel(sample.target)),
   };
 }
 
-function createOptimizer(name: TrainPayload["optimizer"], learningRate: number): tf.Optimizer {
+function createOptimizer(name: TrainParameters["optimizer"], learningRate: number): tf.Optimizer {
   if (name === "rmsprop") {
     return tf.train.rmsprop(learningRate);
   }
@@ -264,7 +180,7 @@ function createOptimizer(name: TrainPayload["optimizer"], learningRate: number):
   return tf.train.adam(learningRate);
 }
 
-function createModel(inputSize: number, params: TrainPayload): tf.LayersModel {
+function createModel(inputSize: number, params: TrainParameters): tf.LayersModel {
   const regularizer = tf.regularizers.l2({ l2: params.l2_lambda });
   const model = tf.sequential();
   const modelId = Date.now().toString(36);
@@ -305,32 +221,29 @@ async function ensureModelLoaded(): Promise<void> {
   modelLoaded = true;
 
   try {
-    const hasState = await fileExists(MODEL_STATE_FILE);
-    if (!hasState) {
+    const persistedState = await loadPersistedModelState(MODEL_STATE_FILE);
+    if (!persistedState) {
       modelState = null;
       tfModel = null;
       return;
     }
 
-    const rawState = await readFile(MODEL_STATE_FILE, "utf-8");
-    const parsed = JSON.parse(rawState) as PersistedModelState;
-
-    if (!parsed?.metadata || !Array.isArray(parsed.metadata.teams)) {
+    if (!persistedState?.metadata || !Array.isArray(persistedState.metadata.teams)) {
       throw new Error("Estado do modelo inválido.");
     }
 
-    const inputSize = parsed.metadata.teams.length * 2;
-    const loadedModel = createModel(inputSize, normalizeAndValidateTrainPayload({}));
+    const inputSize = persistedState.metadata.teams.length * 2;
+    const loadedModel = createModel(inputSize, normalizeAndValidateTrainParameters({}));
 
-    const tensors = parsed.weightValues.map((values, index) => {
-      const shape = parsed.weightShapes[index];
+    const tensors = persistedState.weightValues.map((values, index) => {
+      const shape = persistedState.weightShapes[index];
       return tf.tensor(values, shape, "float32");
     });
 
     loadedModel.setWeights(tensors);
     tensors.forEach((tensor) => tensor.dispose());
 
-    modelState = parsed.metadata;
+    modelState = persistedState.metadata;
     tfModel = loadedModel;
   } catch {
     modelState = null;
@@ -339,8 +252,6 @@ async function ensureModelLoaded(): Promise<void> {
 }
 
 async function persistModel(state: ModelMetadata, model: tf.LayersModel): Promise<void> {
-  await mkdir(TFJS_MODEL_DIR, { recursive: true });
-
   const weights = model.getWeights();
   const weightShapes = weights.map((tensor) => [...tensor.shape]);
   const weightValues = await Promise.all(
@@ -356,7 +267,7 @@ async function persistModel(state: ModelMetadata, model: tf.LayersModel): Promis
     weightValues,
   };
 
-  await writeFile(MODEL_STATE_FILE, JSON.stringify(persisted), "utf-8");
+  await persistModelState(MODEL_STATE_FILE, persisted);
 }
 
 async function yieldToEventLoop(): Promise<void> {
@@ -384,15 +295,15 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
     throw new Error("Já existe um treinamento em andamento.");
   }
 
-  const params = normalizeAndValidateTrainPayload(payload);
+  const params = normalizeAndValidateTrainParameters(payload);
   const rows = await loadMatches();
 
   const cleanedRows = rows
     .map((row) => {
-      const homeTeam = row.mandante?.trim();
-      const awayTeam = row.visitante?.trim();
-      const homeGoals = Number(row.mandante_Placar);
-      const awayGoals = Number(row.visitante_Placar);
+      const homeTeam = row.homeTeam?.trim();
+      const awayTeam = row.awayTeam?.trim();
+      const homeGoals = Number(row.homeScore);
+      const awayGoals = Number(row.awayScore);
 
       if (!homeTeam || !awayTeam || !Number.isFinite(homeGoals) || !Number.isFinite(awayGoals)) {
         return null;
@@ -440,8 +351,8 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
   const teamCount = teams.length;
   const featureCount = teamCount * 2;
 
-  const trainDataset = toEncodedDataset(trainSamples, teamCount);
-  const testDataset = toEncodedDataset(testSamples, teamCount);
+  const trainDataset = createEncodedDataset(trainSamples, teamCount);
+  const testDataset = createEncodedDataset(testSamples, teamCount);
 
   const effectiveEpochs = Math.min(params.epochs, FAST_MODE_MAX_EPOCHS);
   resetTrainingStatus(effectiveEpochs);
@@ -574,19 +485,19 @@ export async function nodePredict(payload: unknown): Promise<PredictResult> {
     throw new Error("Modelo não treinado. Execute /train primeiro.");
   }
 
-  const params = normalizeAndValidatePredictPayload(payload);
+  const predictionData = normalizeAndValidatePredictData(payload);
   const teamToIndex = new Map<string, number>();
   modelState.teams.forEach((team, index) => teamToIndex.set(team, index));
 
-  if (!teamToIndex.has(params.mandante) || !teamToIndex.has(params.visitante)) {
+  if (!teamToIndex.has(predictionData.homeTeam) || !teamToIndex.has(predictionData.awayTeam)) {
     throw new Error("Time não encontrado na base treinada.");
   }
 
-  const homeIndex = teamToIndex.get(params.mandante) ?? 0;
-  const awayIndex = teamToIndex.get(params.visitante) ?? 0;
-  const encoded = encodeMatch(homeIndex, awayIndex, modelState.teams.length);
+  const homeIndex = teamToIndex.get(predictionData.homeTeam) ?? 0;
+  const awayIndex = teamToIndex.get(predictionData.awayTeam) ?? 0;
+  const encodedFeatures = createMatchFeatureVector(homeIndex, awayIndex, modelState.teams.length);
 
-  const input = tf.tensor2d([encoded], [1, encoded.length], "float32");
+  const input = tf.tensor2d([encodedFeatures], [1, encodedFeatures.length], "float32");
   const output = tfModel.predict(input) as tf.Tensor;
   const probabilityData = await output.data();
   const probabilities = Array.from(probabilityData);
@@ -597,12 +508,12 @@ export async function nodePredict(payload: unknown): Promise<PredictResult> {
   const topIndex = argMax(probabilities);
 
   return {
-    prediction: LABELS[topIndex],
+    prediction: PREDICTION_LABELS[topIndex],
     probabilities: {
-      MANDANTE: probabilities[0],
-      EMPATE: probabilities[1],
-      VISITANTE: probabilities[2],
+      HOME: probabilities[0],
+      DRAW: probabilities[1],
+      AWAY: probabilities[2],
     },
-    model_version: modelState.version,
+    modelVersion: modelState.version,
   };
 }

@@ -87,7 +87,7 @@ const TrainingContext = createContext<TrainingContextValue | null>(null);
 function useTrainingContext() {
   const context = useContext(TrainingContext);
   if (!context) {
-    throw new Error("Treinamento components must be used within TreinamentoProvider");
+    throw new Error("Training components must be used within TrainingProvider");
   }
   return context;
 }
@@ -243,7 +243,7 @@ function AccordionChevron({ className = "" }: { className?: string }) {
   );
 }
 
-export function TreinamentoProvider({ children }: { children: ReactNode }) {
+export function TrainingProvider({ children }: { children: ReactNode }) {
   const [preset, setPreset] = useState<TrainingPreset>("balanced");
   const [epochs, setEpochs] = useState(40);
   const [batchSize, setBatchSize] = useState(32);
@@ -321,11 +321,12 @@ export function TreinamentoProvider({ children }: { children: ReactNode }) {
     setLiveHistory(EMPTY_HISTORY);
     setLiveStatus(null);
 
-    setTrainingProgress(0);
-    const pollingInterval = setInterval(async () => {
+    const fetchTrainStatus = async () => {
       try {
         const response = await fetch("/api/ml/train-status");
-        if (!response.ok) return;
+        if (!response.ok) {
+          return;
+        }
 
         const statusData: TrainingStatus = await response.json();
         setLiveStatus(statusData);
@@ -334,7 +335,11 @@ export function TreinamentoProvider({ children }: { children: ReactNode }) {
       } catch {
         return;
       }
-    }, 600);
+    };
+
+    setTrainingProgress(0);
+    await fetchTrainStatus();
+    const pollingInterval = setInterval(fetchTrainStatus, 600);
 
     try {
       const response = await fetch("/api/ml/train", {
@@ -364,11 +369,16 @@ export function TreinamentoProvider({ children }: { children: ReactNode }) {
         setLiveHistory(data.history);
       }
       setTrainingProgress(100);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("ml:model-updated"));
+      }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Erro desconhecido");
       setTrainingProgress(0);
     } finally {
       clearInterval(pollingInterval);
+      await fetchTrainStatus();
       setLoading(false);
     }
   }
@@ -420,7 +430,7 @@ export function TreinamentoProvider({ children }: { children: ReactNode }) {
   return <TrainingContext.Provider value={value}>{children}</TrainingContext.Provider>;
 }
 
-export function TreinamentoContent() {
+export function TrainingContent() {
   const {
     preset,
     setPreset,
@@ -656,7 +666,9 @@ export function TreinamentoContent() {
                     <span>
                       {loading
                         ? `Treinando${liveStatus ? ` (época ${liveStatus.current_epoch}/${liveStatus.total_epochs})` : ""}`
-                        : "Aguardando novo treino"}
+                        : trainingProgress >= 100
+                          ? "Treinamento concluído"
+                          : "Aguardando novo treino"}
                     </span>
                     <strong className="text-foreground">{trainingProgress}%</strong>
                   </div>
@@ -683,12 +695,16 @@ export function TreinamentoContent() {
   );
 }
 
-export function TreinamentoChartsContent({ className = "" }: { className?: string }) {
+export function TrainingChartsContent({ className = "" }: { className?: string }) {
   const { chartHistory } = useTrainingContext();
 
   return (
-    <section className={`card-neon ${className}`.trim()}>
-      <h3 className="text-base font-semibold">Gráficos</h3>
+    <details className={`group/charts card-neon ${className}`.trim()}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">
+        <AccordionChevron className="group-open/charts:rotate-90" />
+        <span>Gráficos</span>
+      </summary>
+
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <TrainingLineChart
           title="Acurácia por época"
@@ -708,7 +724,7 @@ export function TreinamentoChartsContent({ className = "" }: { className?: strin
           formatter={(value) => value.toFixed(4)}
         />
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -733,7 +749,7 @@ function AjudaAccordionSection({
   );
 }
 
-export function TreinamentoAjudaContent({ className = "" }: { className?: string }) {
+export function TrainingHelpContent({ className = "" }: { className?: string }) {
   return (
     <details open className={`group/help card-neon ${className}`.trim()}>
       <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">

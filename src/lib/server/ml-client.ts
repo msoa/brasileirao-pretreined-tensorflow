@@ -3,11 +3,8 @@ import {
   nodeGetTrainStatus,
   nodePredict,
   nodeTrainModel,
-  type ModelInfo,
-  type TrainingStatus,
-  type TrainResult,
-  type PredictResult,
 } from "@/lib/server/ml-node-service";
+import type { ModelInfo, PredictResult, TrainingStatus, TrainResult } from "@/lib/server/ml-model";
 
 export function mlGet(path: "/model/info"): Promise<ModelInfo>;
 export function mlGet(path: "/train/status"): Promise<TrainingStatus>;

@@ -4,20 +4,20 @@ import { FormEvent, useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 
 type PredictResult = {
-  prediction: "MANDANTE" | "EMPATE" | "VISITANTE";
+  prediction: "HOME" | "DRAW" | "AWAY";
   probabilities: Record<string, number>;
 };
 
 const PROBABILITY_COLUMNS = [
-  { key: "MANDANTE", label: "Mandante" },
-  { key: "EMPATE", label: "Empate" },
-  { key: "VISITANTE", label: "Visitante" },
+  { key: "HOME", label: "Mandante" },
+  { key: "DRAW", label: "Empate" },
+  { key: "AWAY", label: "Visitante" },
 ];
 
-export function PrevisoesContent() {
+export function PredictionsContent() {
   const [teams, setTeams] = useState<string[]>([]);
-  const [mandante, setMandante] = useState("");
-  const [visitante, setVisitante] = useState("");
+  const [homeTeam, setHomeTeam] = useState("");
+  const [awayTeam, setAwayTeam] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PredictResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +28,8 @@ export function PrevisoesContent() {
       const data = await response.json();
       const loadedTeams: string[] = data.teams ?? [];
       setTeams(loadedTeams);
-      setMandante((current) => current || loadedTeams[0] || "");
-      setVisitante((current) => current || loadedTeams[1] || "");
+      setHomeTeam((current) => current || loadedTeams[0] || "");
+      setAwayTeam((current) => current || loadedTeams[1] || "");
     }
     void loadTeams();
   }, []);
@@ -44,7 +44,7 @@ export function PrevisoesContent() {
       const response = await fetch("/api/ml/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mandante, visitante }),
+        body: JSON.stringify({ homeTeam, awayTeam }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -66,8 +66,8 @@ export function PrevisoesContent() {
           <label className="text-sm">
             <span className="mb-1 block text-muted">Mandante</span>
             <select
-              value={mandante}
-              onChange={(event) => setMandante(event.target.value)}
+              value={homeTeam}
+              onChange={(event) => setHomeTeam(event.target.value)}
               className="select-neon"
             >
               {teams.map((team) => (
@@ -80,8 +80,8 @@ export function PrevisoesContent() {
           <label className="text-sm">
             <span className="mb-1 block text-muted">Visitante</span>
             <select
-              value={visitante}
-              onChange={(event) => setVisitante(event.target.value)}
+              value={awayTeam}
+              onChange={(event) => setAwayTeam(event.target.value)}
               className="select-neon"
             >
               {teams.map((team) => (
@@ -94,7 +94,7 @@ export function PrevisoesContent() {
           <div className="sm:col-span-2">
             <button
               type="submit"
-              disabled={loading || !mandante || !visitante || mandante === visitante}
+              disabled={loading || !homeTeam || !awayTeam || homeTeam === awayTeam}
               className="btn-primary"
             >
               {loading ? "Predizendo..." : "Executar predição"}
@@ -131,10 +131,10 @@ export function PrevisoesContent() {
   );
 }
 
-export default function PrevisoesPage() {
+export default function PredictionsPage() {
   return (
     <AppShell>
-      <PrevisoesContent />
+      <PredictionsContent />
     </AppShell>
   );
 }

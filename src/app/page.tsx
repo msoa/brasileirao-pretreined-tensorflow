@@ -1,12 +1,13 @@
 import { AppShell } from "@/components/app-shell";
-import { ExploracaoContent } from "@/app/exploracao/page";
+import { ExplorationContent } from "@/app/exploration/page";
 import {
-  TreinamentoAjudaContent,
-  TreinamentoChartsContent,
-  TreinamentoContent,
-  TreinamentoProvider,
-} from "@/app/treinamento/treinamento-content";
-import { PrevisoesContent } from "@/app/previsoes/page";
+  TrainingChartsContent,
+  TrainingContent,
+  TrainingHelpContent,
+  TrainingProvider,
+} from "@/app/training/training-content";
+import { PredictionsContent } from "@/app/predictions/page";
+import { ModelOverviewCards } from "@/components/model-overview-cards";
 import { getDataSummary } from "@/lib/server/csv-data";
 import { mlGet } from "@/lib/server/ml-client";
 
@@ -26,26 +27,7 @@ export default async function Home() {
       <section id="dashboard" className="scroll-mt-24">
         <h2 className="text-xl font-semibold">Base de dados e modelo</h2>
         <p className="mt-2 text-sm text-muted">Fluxo rápido: ajuste, treine, observe e preveja.</p>
-        <section className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <article className="card-neon">
-            <p className="text-muted">Partidas na base</p>
-            <p className="text-2xl font-semibold">{summary?.totalMatches ?? "-"}</p>
-          </article>
-          <article className="card-neon">
-            <p className="text-muted">Times únicos</p>
-            <p className="text-2xl font-semibold">{summary?.totalTeams ?? "-"}</p>
-          </article>
-          <article className="card-neon">
-            <p className="text-muted">Modelo treinado</p>
-            <p className="text-2xl font-semibold">{model?.trained ? "Sim" : "Não"}</p>
-          </article>
-          <article className="card-neon">
-            <p className="text-muted">Acurácia teste</p>
-            <p className="text-2xl font-semibold">
-              {typeof model?.test_accuracy === "number" ? `${(model.test_accuracy * 100).toFixed(1)}%` : "-"}
-            </p>
-          </article>
-        </section>
+        <ModelOverviewCards summary={summary} initialModel={model} />
         <p className="mt-4 text-sm text-muted">
           Dados originários de{" "}
           <a href="https://www.kaggle.com/datasets/adaoduque/campeonato-brasileiro-de-futebol" target="_blank" rel="noreferrer" className="underline">
@@ -54,33 +36,33 @@ export default async function Home() {
         </p>
       </section>
 
-      <section id="treinamento" className="mt-10 scroll-mt-24">
-        <TreinamentoProvider>
+      <section id="training" className="mt-10 scroll-mt-24">
+        <TrainingProvider>
           <h2 className="text-xl font-semibold">Treinamento</h2>
           <div className="mt-4">
-            <TreinamentoContent />
+            <TrainingContent />
           </div>
           <div className="mt-6">
-            <TreinamentoChartsContent />
+            <TrainingChartsContent />
           </div>
-        </TreinamentoProvider>
+        </TrainingProvider>
       </section>
 
-      <section id="previsoes" className="mt-10 scroll-mt-24">
+      <section id="predictions" className="mt-10 scroll-mt-24">
         <h2 className="text-xl font-semibold">Previsões</h2>
         <div className="mt-4">
-          <PrevisoesContent />
+          <PredictionsContent />
         </div>
       </section>
 
-      <section id="exploracao" className="mt-10 scroll-mt-24">
+      <section id="exploration" className="mt-10 scroll-mt-24">
         <h2 className="text-xl font-semibold">Exploração</h2>
         <div className="mt-4">
-          <ExploracaoContent />
+          <ExplorationContent />
         </div>
       </section>
 
-      <section id="sobre-mim" className="mt-10 scroll-mt-24">
+      <section id="about-me" className="mt-10 scroll-mt-24">
         <h2 className="text-xl font-semibold">Sobre mim</h2>
         <section className="card-neon">
           <p className="text-base font-semibold">Marco Sérgio de O. Araújo</p>
@@ -99,7 +81,7 @@ export default async function Home() {
         </section>
       </section>
 
-      <section id="aviso" className="mt-10 scroll-mt-24">
+      <section id="notice" className="mt-10 scroll-mt-24">
         <h2 className="text-xl font-semibold">Aviso acadêmico</h2>
         <section className="card-neon mt-4">
           <p className="text-sm text-muted">
@@ -112,10 +94,10 @@ export default async function Home() {
         </section>
       </section>
 
-      <section id="ajuda" className="mt-10 scroll-mt-24">
+      <section id="help" className="mt-10 scroll-mt-24">
         <h2 className="text-xl font-semibold">Ajuda</h2>
         <div className="mt-4">
-          <TreinamentoAjudaContent />
+          <TrainingHelpContent />
         </div>
       </section>
     </AppShell>

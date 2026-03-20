@@ -3,12 +3,12 @@ import { ReactNode } from "react";
 
 const LINKS = [
   { href: "/#dashboard", label: "Base de dados e modelo" },
-  { href: "/#treinamento", label: "Treinamento" },
-  { href: "/#previsoes", label: "Previsões" },
-  { href: "/#exploracao", label: "Exploração" },
-  { href: "/#sobre-mim", label: "Sobre mim" },
-  { href: "/#aviso", label: "Aviso" },
-  { href: "/#ajuda", label: "Ajuda" },
+  { href: "/#training", label: "Treinamento" },
+  { href: "/#predictions", label: "Previsões" },
+  { href: "/#exploration", label: "Exploração" },
+  { href: "/#about-me", label: "Sobre mim" },
+  { href: "/#notice", label: "Aviso" },
+  { href: "/#help", label: "Ajuda" },
 ];
 
 type AppShellProps = {
