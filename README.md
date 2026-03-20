@@ -1,63 +1,52 @@
 # brasileirao-pretreined-tensorflow
 
-Aplicação web para análise do Campeonato Brasileiro e predição de resultados com TensorFlow.js, usando dados históricos em CSV.
+Aplicação web completa para análise do Campeonato Brasileiro e predição de resultados com **Next.js**, **TypeScript** e **TensorFlow.js**, processando dados históricos em CSV.
 
 ## Objetivo
 
-Projeto acadêmico para prática de ciência de dados e machine learning aplicada ao futebol, com interface única para:
+Projeto acadêmico demonstrando um **pipeline completo de ML aplicado ao futebol**, com interface integrada para:
 
-- explorar os dados,
-- treinar o modelo,
-- acompanhar métricas de treino,
-- gerar previsões.
+- **Explorar** dados históricos do Campeonato Brasileiro
+- **Treinar** modelo neural com parâmetros customizáveis
+- **Acompanhar** métricas de treinamento em tempo real
+- **Gerar previsões** de resultados de partidas
 
-Fluxo rápido: **ajuste, treine, observe e preveja**.
+Fluxo rápido: **configure → treine → observe métricas → preveja**.
 
-## Stack
+## Tecnologias
 
-### Web + API (único processo)
-- Next.js 16 (App Router)
-- TypeScript
-- Tailwind CSS
-- Rotas de API do Next.js
-
-### Machine Learning (Node)
-- TensorFlow.js (`@tensorflow/tfjs`)
-- Treinamento e inferência no backend do próprio Next.js
-- Persistência local em `.artifacts/`
+• **Next.js 16** (App Router + TypeScript): framework web moderno com SSR/SSG  
+• **TensorFlow.js**: treinamento e inferência de modelos neurais no backend Node.js  
+• **Tailwind CSS**: estilização com utility-first CSS  
+• **Zod**: validação de schemas e payloads  
+• **csv-parse**: parsing robusto de dados CSV  
 
 ### Dados
-Arquivos em `data/`:
 
-- `campeonato-brasileiro-full.csv`
-- `campeonato-brasileiro-estatisticas-full.csv`
-- `campeonato-brasileiro-gols.csv`
-- `campeonato-brasileiro-cartoes.csv`
+Datasets em `data/`:
 
-## Arquitetura atual
+• `campeonato-brasileiro-full.csv` – Histórico de partidas  
+• `campeonato-brasileiro-estatisticas-full.csv` – Estatísticas de times  
+• `campeonato-brasileiro-gols.csv` – Registro de gols  
+• `campeonato-brasileiro-cartoes.csv` – Cartões recebidos  
 
-O sistema roda na raiz do repositório:
+## Como executar localmente
 
-- Frontend: página única com seções `Base de dados`, `Treinamento`, `Previsões`, `Exploração`, `Ajuda`.
-- API de dados: `/api/data/*` (leitura e agregação dos CSVs).
-- API de ML: `/api/ml/*` (treino, status, predição e info do modelo).
-
-Resumo do fluxo:
-
-1. A interface chama rotas internas do Next.js.
-2. O backend processa dados e executa treino/predição via TFJS.
-3. O estado do modelo é salvo em `.artifacts`.
-
-## Rodar localmente
+### 1. Instalar dependências
 
 ```bash
 npm install
+```
+
+### 2. Rodar em desenvolvimento
+
+```bash
 npm run dev
 ```
 
-App: `http://localhost:3000`
+A aplicação estará em `http://localhost:3000`.
 
-## Build de produção
+### 3. Build de produção
 
 ```bash
 npm run lint
@@ -65,39 +54,117 @@ npm run build
 npm run start
 ```
 
-## Endpoints principais
+## Scripts principais
+
+### Desenvolvimento e build
+
+• `npm run dev` – inicia dev server com hot reload  
+• `npm run build` – compila Next.js para produção  
+• `npm run start` – inicia servidor de produção  
+• `npm run lint` – valida código com ESLint  
+
+## Arquitetura (resumo)
+
+O sistema roda como **aplicação monolítica** no Next.js:
+
+**Frontend:**
+- Página única (SPA) com 5 seções navegáveis:
+  - **Base de dados**: exploração de partidas, estatísticas e tabelas
+  - **Treinamento**: interface de ajuste de hiperparâmetros e monitoramento
+  - **Previsões**: predição de resultado de matches
+  - **Exploração**: análises avançadas por rodada e time
+  - **Ajuda**: documentação de parâmetros
+
+**API Routes (Next.js):**
+- `/api/data/*` – leitura e agregação de dados CSV
+- `/api/ml/*` – orquestração de treinamento e predição
+
+**Machine Learning:**
+- Modelo sequencial TensorFlow.js com camadas customizáveis
+- Treinamento com early stopping, dropout e regularização L2
+- Persistência de pesos em `.artifacts/` (local)
+
+**Fluxo:**
+1. Frontend envia requisição HTTP para rotas internas do Next.js
+2. Backend carrega/normaliza dados, executa treino/predição via TFJS
+3. Estado do modelo é salvo em `.artifacts/` para reutilização
+
+## Endpoints relevantes
 
 ### Dados
-- `GET /api/data/years`
-- `GET /api/data/teams?year=...`
-- `GET /api/data/matches?year=...&team=...`
-- `GET /api/data/team-summary?year=...&team=...`
+
+• `GET /api/data/years` – lista de anos disponíveis  
+• `GET /api/data/teams?year=YYYY` – times de um ano  
+• `GET /api/data/matches?year=YYYY&team=...` – partidas com filtros  
+• `GET /api/data/team-summary?year=YYYY&team=...` – estatísticas de time  
 
 ### Machine Learning
-- `POST /api/ml/train`
-- `GET /api/ml/train-status`
-- `POST /api/ml/predict`
-- `GET /api/ml/model-info`
 
-## Parâmetros de treino expostos na UI
+• `POST /api/ml/train` – inicia treino (payload: hiperparâmetros)  
+• `GET /api/ml/train-status` – status e métricas do treino em progresso  
+• `POST /api/ml/predict` – predição de resultado (payload: `{ homeTeam, awayTeam }`)  
+• `GET /api/ml/model-info` – info do modelo armazenado  
 
-- `preset`
-- `epochs`
-- `batch_size`
-- `test_size`
-- `learning_rate`
-- `optimizer`
-- `dropout_rate`
-- `l2_lambda`
-- `hidden_layers` (camadas 1, 2 e 3)
-- `early_stopping_patience`
-- `early_stopping_min_delta`
+## Parâmetros de treinamento
+
+Customize o modelo via UI (presets: Fast / Balanced / Accuracy) ou manualmente:
+
+| Parâmetro | Padrão | Descrição |
+|-----------|--------|-----------|
+| `epochs` | 100 | Iterações sobre dataset |
+| `batch_size` | 32 | Amostras por atualização |
+| `test_size` | 0.2 | Fração para validação |
+| `learning_rate` | 0.01 | Taxa de aprendizado |
+| `optimizer` | adam | Otimizador (adam, sgd, rmsprop) |
+| `dropout_rate` | 0.3 | Regularização por dropout |
+| `l2_lambda` | 0.0001 | Regularização L2 |
+| `early_stopping_patience` | 15 | Épocas sem melhora antes de parar |
+| `early_stopping_min_delta` | 0.001 | Delta mínimo para considerar melhora |
 
 ## Artefatos e Git
 
-Os artefatos do modelo em `.artifacts/` são gerados localmente e estão ignorados no versionamento.
+Os artefatos do modelo (pesos TensorFlow) em `.artifacts/` são:
+- Gerados **localmente** durante treinamento
+- **Ignorados no versionamento** (em `.gitignore`)
+- Reutilizáveis entre sessões sem necessidade de retreinamento
+
+## Estrutura do repositório
+
+```
+.
+├── web/                           # Aplicação Next.js
+│   ├── src/
+│   │   ├── app/                  # App Router pages + API routes
+│   │   │   ├── training/         # Página de treinamento
+│   │   │   ├── predictions/      # Página de predições
+│   │   │   ├── exploration/      # Página de exploração
+│   │   │   └── api/              # Rotas de dados e ML
+│   │   └── lib/                  # Serviços e tipos
+│   │       └── server/           # ML service, CSV data layer
+│   ├── package.json
+│   └── tsconfig.json
+├── data/                          # Datasets CSV (ignorado em .gitignore)
+├── .artifacts/                    # Artefatos do modelo (ignorado)
+├── package.json
+└── README.md
+```
+
+## Deploy
+
+Recomendado: serviços com Node.js e suporte a file system (Render, Railway, fly.io).
+
+Configuração mínima:
+- **Build**: `npm ci`
+- **Start**: `npm run build && npm run start`
+- **Variáveis**: nenhuma obrigatória (CSVs em `data/`)
+
+## Licença
+
+MIT
 
 ## Autor
+
+Marco
 
 - Marco Sérgio de Oliveira Araújo
 - LinkedIn: https://www.linkedin.com/in/marcosergio/
