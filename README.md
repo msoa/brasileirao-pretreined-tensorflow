@@ -15,7 +15,7 @@ Fluxo rápido: **configure → treine → observe métricas → preveja**.
 
 ## 🚀 Projeto em produção
 
-**Acesse:** https://brasileirao-pretreined-tensorflow-1.onrender.com/
+**Acesse:** https://brasileirao-tensorflow.onrender.com/
 
 ## Tecnologias
 
