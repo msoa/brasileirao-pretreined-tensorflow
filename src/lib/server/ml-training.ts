@@ -181,12 +181,15 @@ function createOptimizer(name: TrainParameters["optimizer"], learningRate: numbe
 }
 
 function createModel(inputSize: number, params: TrainParameters): tf.LayersModel {
+  // L2 regularization is applied to all layers, including the output layer, to help prevent overfitting.
   const regularizer = tf.regularizers.l2({ l2: params.l2_lambda });
+  // A unique modelId is generated to ensure that layer names are unique across different training sessions,
   const model = tf.sequential();
   const modelId = Date.now().toString(36);
 
   params.hidden_layers.forEach((units, index) => {
     model.add(
+      // Each hidden layer uses ReLU activation and He initialization, which are good defaults for deep networks.
       tf.layers.dense({
         name: `dense_hidden_${index + 1}_${modelId}`,
         units,
@@ -198,12 +201,15 @@ function createModel(inputSize: number, params: TrainParameters): tf.LayersModel
     );
 
     if (params.dropout_rate > 0 && index < params.hidden_layers.length - 1) {
+      // Dropout layers are added after each hidden layer except the last one, to help prevent overfitting by randomly dropping units during training.
       model.add(tf.layers.dropout({ rate: params.dropout_rate, name: `dropout_${index + 1}_${modelId}` }));
     }
   });
 
+  // The output layer uses softmax activation to produce probabilities for each of the three classes (home win, draw, away win).
   model.add(tf.layers.dense({ name: `dense_output_${modelId}`, units: 3, activation: "softmax" }));
 
+  // The model is compiled with the specified optimizer, categorical crossentropy loss (suitable for multi-class classification), and accuracy as a metric to track during training.
   model.compile({
     optimizer: createOptimizer(params.optimizer, params.learning_rate),
     loss: "categoricalCrossentropy",
@@ -237,9 +243,13 @@ async function ensureModelLoaded(): Promise<void> {
 
     const tensors = persistedState.weightValues.map((values, index) => {
       const shape = persistedState.weightShapes[index];
+      // The weights are loaded as flat arrays and reshaped into their original dimensions using the stored shapes. 
+      // This allows the model to be reconstructed with the same parameters it had during training.
       return tf.tensor(values, shape, "float32");
     });
 
+    // Once all tensors are created, they are set as the weights of the loaded model. 
+    // After setting the weights, the individual tensors are disposed to free up memory, since the model now holds references to them.
     loadedModel.setWeights(tensors);
     tensors.forEach((tensor) => tensor.dispose());
 
@@ -276,9 +286,7 @@ async function yieldToEventLoop(): Promise<void> {
   });
 }
 
-export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
-  await ensureModelLoaded();
-
+function ensureNoTrainingInProgress(): void {
   if (trainingStatus.in_progress) {
     const isStaleTraining =
       trainingStatus.current_epoch === 0 &&
@@ -294,11 +302,30 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
   if (trainingStatus.in_progress) {
     throw new Error("Já existe um treinamento em andamento.");
   }
+}
 
-  const params = normalizeAndValidateTrainParameters(payload);
-  const rows = await loadMatches();
+type NormalizedMatchRow = {
+  homeTeam: string;
+  awayTeam: string;
+  target: number;
+};
 
-  const cleanedRows = rows
+type PreparedTrainingData = {
+  teams: string[];
+  trainDataset: EncodedDataset;
+  testDataset: EncodedDataset;
+  featureCount: number;
+};
+
+type TrainingTensors = {
+  xsTrain: tf.Tensor2D;
+  ysTrain: tf.Tensor2D;
+  xsTest: tf.Tensor2D;
+  ysTest: tf.Tensor2D;
+};
+
+function normalizeTrainingRows(rows: Awaited<ReturnType<typeof loadMatches>>): NormalizedMatchRow[] {
+  return rows
     .map((row) => {
       const homeTeam = row.homeTeam?.trim();
       const awayTeam = row.awayTeam?.trim();
@@ -316,58 +343,194 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
         target,
       };
     })
-    .filter((row): row is { homeTeam: string; awayTeam: string; target: number } => row !== null);
+    .filter((row): row is NormalizedMatchRow => row !== null);
+}
 
-  const teams = Array.from(new Set(cleanedRows.flatMap((row) => [row.homeTeam, row.awayTeam]))).sort((left, right) =>
-    left.localeCompare(right),
-  );
-
-  if (teams.length === 0 || cleanedRows.length < 4) {
-    throw new Error("Base insuficiente para treinamento.");
-  }
-
+function buildEncodedSamples(rows: NormalizedMatchRow[], teams: string[]): EncodedSample[] {
   const teamToIndex = new Map<string, number>();
   teams.forEach((team, index) => teamToIndex.set(team, index));
 
-  const encoded: EncodedSample[] = cleanedRows.map((row) => {
-    return {
-      home: teamToIndex.get(row.homeTeam) ?? 0,
-      away: teamToIndex.get(row.awayTeam) ?? 0,
-      target: row.target,
-    };
-  });
+  return rows.map((row) => ({
+    home: teamToIndex.get(row.homeTeam) ?? 0,
+    away: teamToIndex.get(row.awayTeam) ?? 0,
+    target: row.target,
+  }));
+}
 
+function splitTrainAndTestSamples(encoded: EncodedSample[], testSize: number): { trainSamples: EncodedSample[]; testSamples: EncodedSample[] } {
   const totalRows = encoded.length;
-  const testCount = Math.max(1, Math.round(totalRows * params.test_size));
+  const testCount = Math.max(1, Math.round(totalRows * testSize));
   const trainCount = Math.max(1, totalRows - testCount);
 
   if (trainCount < 1 || totalRows - trainCount < 1) {
     throw new Error("Não foi possível separar base de treino/teste com os parâmetros informados.");
   }
 
-  const trainSamples = encoded.slice(0, trainCount);
-  const testSamples = encoded.slice(trainCount);
+  return {
+    trainSamples: encoded.slice(0, trainCount),
+    testSamples: encoded.slice(trainCount),
+  };
+}
+
+async function prepareTrainingData(params: TrainParameters): Promise<PreparedTrainingData> {
+  const rows = await loadMatches();
+  const normalizedRows = normalizeTrainingRows(rows);
+
+  const teams = Array.from(new Set(normalizedRows.flatMap((row) => [row.homeTeam, row.awayTeam]))).sort((left, right) =>
+    left.localeCompare(right),
+  );
+
+  if (teams.length === 0 || normalizedRows.length < 4) {
+    throw new Error("Base insuficiente para treinamento.");
+  }
+
+  const encodedSamples = buildEncodedSamples(normalizedRows, teams);
+  const { trainSamples, testSamples } = splitTrainAndTestSamples(encodedSamples, params.test_size);
 
   const teamCount = teams.length;
-  const featureCount = teamCount * 2;
 
-  const trainDataset = createEncodedDataset(trainSamples, teamCount);
-  const testDataset = createEncodedDataset(testSamples, teamCount);
+  return {
+    teams,
+    trainDataset: createEncodedDataset(trainSamples, teamCount),
+    testDataset: createEncodedDataset(testSamples, teamCount),
+    featureCount: teamCount * 2,
+  };
+}
+
+function createTrainingTensors(data: PreparedTrainingData): TrainingTensors {
+  // The training and testing datasets are converted into TensorFlow tensors, which are the primary data structures used for model training and inference.
+  return {
+    xsTrain: tf.tensor2d(data.trainDataset.xs, [data.trainDataset.xs.length, data.featureCount], "float32"),
+    ysTrain: tf.tensor2d(data.trainDataset.ys, [data.trainDataset.ys.length, 3], "float32"),
+    xsTest: tf.tensor2d(data.testDataset.xs, [data.testDataset.xs.length, data.featureCount], "float32"),
+    ysTest: tf.tensor2d(data.testDataset.ys, [data.testDataset.ys.length, 3], "float32"),
+  };
+}
+
+function disposeTrainingTensors(tensors: TrainingTensors): void {
+  tensors.xsTrain.dispose();
+  tensors.ysTrain.dispose();
+  tensors.xsTest.dispose();
+  tensors.ysTest.dispose();
+}
+
+async function fitModelWithTrainingStatus(
+  model: tf.LayersModel,
+  tensors: TrainingTensors,
+  params: TrainParameters,
+  effectiveEpochs: number,
+): Promise<number> {
+  let bestValLoss = Number.POSITIVE_INFINITY;
+  let noImprovementEpochs = 0;
+  let completedEpochs = 0;
+  const minimumEpochsBeforeEarlyStopping = Math.min(
+    effectiveEpochs,
+    Math.max(10, params.early_stopping_patience * 2),
+  );
+  const totalTrainSamples = tensors.xsTrain.shape[0] ?? 0;
+  const batchesPerEpoch = Math.max(1, Math.ceil(totalTrainSamples / Math.max(1, params.batch_size)));
+
+  // The model is trained using the fit method, which takes the training tensors and various training parameters.
+  // A custom callback is provided to the fit method to update the training status after each epoch, allowing for real-time tracking of training progress and metrics.
+  await model.fit(tensors.xsTrain, tensors.ysTrain, {
+    epochs: effectiveEpochs,
+    batchSize: params.batch_size,
+    validationData: [tensors.xsTest, tensors.ysTest],
+    shuffle: true,
+    callbacks: {
+      onBatchEnd: async (batch: number) => {
+        const batchFraction = Math.min(1, (batch + 1) / batchesPerEpoch);
+        const totalEpochsForProgress = Math.max(1, trainingStatus.total_epochs || effectiveEpochs);
+        const currentProgress = ((completedEpochs + batchFraction) / totalEpochsForProgress) * 100;
+        trainingStatus.progress = Number(Math.min(99.9, currentProgress).toFixed(2));
+        await yieldToEventLoop();
+      },
+      onEpochEnd: async (epoch: number, logs?: tf.Logs) => {
+        const trainAccuracy = toNonNegativeMetric(logs?.acc ?? logs?.accuracy);
+        const validAccuracy = toNonNegativeMetric(logs?.val_acc ?? logs?.val_accuracy);
+        const trainLoss = toNonNegativeMetric(logs?.loss);
+        const validLoss = toNonNegativeMetric(logs?.val_loss);
+
+        const currentEpoch = epoch + 1;
+        let totalEpochsForProgress = effectiveEpochs;
+        completedEpochs = currentEpoch;
+
+        trainingStatus.current_epoch = currentEpoch;
+        trainingStatus.total_epochs = effectiveEpochs;
+        trainingStatus.history.accuracy.push(trainAccuracy);
+        trainingStatus.history.val_accuracy.push(validAccuracy);
+        trainingStatus.history.loss.push(trainLoss);
+        trainingStatus.history.val_loss.push(validLoss);
+
+        const canApplyEarlyStopping =
+          params.early_stopping_patience > 0 &&
+          currentEpoch >= minimumEpochsBeforeEarlyStopping;
+
+        if (canApplyEarlyStopping && validLoss > 0) {
+          if (validLoss < bestValLoss - params.early_stopping_min_delta) {
+            bestValLoss = validLoss;
+            noImprovementEpochs = 0;
+          } else {
+            noImprovementEpochs += 1;
+            if (noImprovementEpochs >= params.early_stopping_patience) {
+              const stoppableModel = model as tf.LayersModel & { stopTraining?: boolean };
+              stoppableModel.stopTraining = true;
+              trainingStatus.total_epochs = currentEpoch;
+              totalEpochsForProgress = currentEpoch;
+            }
+          }
+        }
+
+        trainingStatus.progress = Number(((currentEpoch / totalEpochsForProgress) * 100).toFixed(2));
+
+        await yieldToEventLoop();
+      },
+    },
+  });
+
+  return trainingStatus.history.val_accuracy.at(-1) ?? 0;
+}
+
+async function finalizeTrainedModel(model: tf.LayersModel, teams: string[], finalTestAccuracy: number): Promise<TrainResult> {
+  const version = new Date().toISOString();
+
+  modelState = {
+    teams,
+    version,
+    test_accuracy: finalTestAccuracy,
+  };
+
+  await persistModel(modelState, model);
+
+  tfModel = model;
+  trainingStatus.in_progress = false;
+  trainingStatus.progress = 100;
+
+  return {
+    status: "trained",
+    test_accuracy: finalTestAccuracy,
+    version,
+    teams: teams.length,
+    history: trainingStatus.history,
+  };
+}
+
+export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
+  await ensureModelLoaded();
+
+  ensureNoTrainingInProgress();
+
+  const params = normalizeAndValidateTrainParameters(payload);
+  const preparedData = await prepareTrainingData(params);
 
   const effectiveEpochs = Math.min(params.epochs, FAST_MODE_MAX_EPOCHS);
   resetTrainingStatus(effectiveEpochs);
 
-  let xsTrain: tf.Tensor2D | null = null;
-  let ysTrain: tf.Tensor2D | null = null;
-  let xsTest: tf.Tensor2D | null = null;
-  let ysTest: tf.Tensor2D | null = null;
+  let tensors: TrainingTensors | null = null;
   let model: tf.LayersModel | null = null;
 
   try {
-    xsTrain = tf.tensor2d(trainDataset.xs, [trainDataset.xs.length, featureCount], "float32");
-    ysTrain = tf.tensor2d(trainDataset.ys, [trainDataset.ys.length, 3], "float32");
-    xsTest = tf.tensor2d(testDataset.xs, [testDataset.xs.length, featureCount], "float32");
-    ysTest = tf.tensor2d(testDataset.ys, [testDataset.ys.length, 3], "float32");
+    tensors = createTrainingTensors(preparedData);
 
     if (tfModel) {
       tfModel.dispose();
@@ -375,82 +538,19 @@ export async function nodeTrainModel(payload: unknown): Promise<TrainResult> {
     }
     tf.disposeVariables();
 
-    model = createModel(featureCount, params);
-    let bestValLoss = Number.POSITIVE_INFINITY;
-    let noImprovementEpochs = 0;
+    model = createModel(preparedData.featureCount, params);
+    const finalTestAccuracy = await fitModelWithTrainingStatus(model, tensors, params, effectiveEpochs);
 
-    await model.fit(xsTrain, ysTrain, {
-      epochs: effectiveEpochs,
-      batchSize: params.batch_size,
-      validationData: [xsTest, ysTest],
-      shuffle: true,
-      callbacks: {
-        onEpochEnd: async (epoch: number, logs?: tf.Logs) => {
-          const trainAccuracy = toNonNegativeMetric(logs?.acc ?? logs?.accuracy);
-          const validAccuracy = toNonNegativeMetric(logs?.val_acc ?? logs?.val_accuracy);
-          const trainLoss = toNonNegativeMetric(logs?.loss);
-          const validLoss = toNonNegativeMetric(logs?.val_loss);
-
-          trainingStatus.current_epoch = epoch + 1;
-          trainingStatus.total_epochs = effectiveEpochs;
-          trainingStatus.progress = Number((((epoch + 1) / effectiveEpochs) * 100).toFixed(2));
-          trainingStatus.history.accuracy.push(trainAccuracy);
-          trainingStatus.history.val_accuracy.push(validAccuracy);
-          trainingStatus.history.loss.push(trainLoss);
-          trainingStatus.history.val_loss.push(validLoss);
-
-          if (params.early_stopping_patience > 0 && validLoss > 0) {
-            if (validLoss < bestValLoss - params.early_stopping_min_delta) {
-              bestValLoss = validLoss;
-              noImprovementEpochs = 0;
-            } else {
-              noImprovementEpochs += 1;
-              if (noImprovementEpochs >= params.early_stopping_patience) {
-                const stoppableModel = model as tf.LayersModel & { stopTraining?: boolean };
-                stoppableModel.stopTraining = true;
-                trainingStatus.total_epochs = epoch + 1;
-              }
-            }
-          }
-
-          await yieldToEventLoop();
-        },
-      },
-    });
-
-    const finalTestAccuracy = trainingStatus.history.val_accuracy.at(-1) ?? 0;
-    const version = new Date().toISOString();
-
-    modelState = {
-      teams,
-      version,
-      test_accuracy: finalTestAccuracy,
-    };
-
-    await persistModel(modelState, model);
-
-    tfModel = model;
-
-    trainingStatus.in_progress = false;
-    trainingStatus.progress = 100;
-
-    return {
-      status: "trained",
-      test_accuracy: finalTestAccuracy,
-      version,
-      teams: teams.length,
-      history: trainingStatus.history,
-    };
+    return finalizeTrainedModel(model, preparedData.teams, finalTestAccuracy);
   } catch (error) {
     model?.dispose();
     trainingStatus.in_progress = false;
     trainingStatus.progress = 0;
     throw error;
   } finally {
-    xsTrain?.dispose();
-    ysTrain?.dispose();
-    xsTest?.dispose();
-    ysTest?.dispose();
+    if (tensors) {
+      disposeTrainingTensors(tensors);
+    }
   }
 }
 
@@ -497,7 +597,9 @@ export async function nodePredict(payload: unknown): Promise<PredictResult> {
   const awayIndex = teamToIndex.get(predictionData.awayTeam) ?? 0;
   const encodedFeatures = createMatchFeatureVector(homeIndex, awayIndex, modelState.teams.length);
 
+  // The encoded feature vector for the input match is created and converted into a 2D tensor with shape [1, featureCount], where featureCount is twice the number of teams (one-hot encoding for home and away teams).
   const input = tf.tensor2d([encodedFeatures], [1, encodedFeatures.length], "float32");
+  // The model's predict method is called with the input tensor, which returns a tensor containing the predicted probabilities for each class (home win, draw, away win). The data from this output tensor is extracted into a JavaScript array for further processing.
   const output = tfModel.predict(input) as tf.Tensor;
   const probabilityData = await output.data();
   const probabilities = Array.from(probabilityData);

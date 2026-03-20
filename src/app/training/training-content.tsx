@@ -339,7 +339,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
 
     setTrainingProgress(0);
     await fetchTrainStatus();
-    const pollingInterval = setInterval(fetchTrainStatus, 600);
+    const pollingInterval = setInterval(fetchTrainStatus, 200);
 
     try {
       const response = await fetch("/api/ml/train", {
@@ -368,7 +368,8 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       if (data.history) {
         setLiveHistory(data.history);
       }
-      setTrainingProgress(100);
+      await fetchTrainStatus();
+      setTrainingProgress((current) => Math.max(current, 100));
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("ml:model-updated"));
