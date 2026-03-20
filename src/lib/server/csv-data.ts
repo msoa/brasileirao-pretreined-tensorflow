@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
 
-export type MatchRow = {
+type RawMatchRow = {
   ID: string;
   rodata: string;
   data: string;
@@ -15,13 +15,35 @@ export type MatchRow = {
   visitante_Placar: string;
 };
 
-type GoalRow = {
+export type MatchRow = {
+  id: string;
+  round: string;
+  matchDate: string;
+  matchTime: string;
+  homeTeam: string;
+  awayTeam: string;
+  winner: string;
+  venue: string;
+  homeScore: string;
+  awayScore: string;
+};
+
+type RawGoalRow = {
   partida_id: string;
   rodata: string;
   clube: string;
   atleta: string;
   minuto: string;
   tipo_de_gol?: string;
+};
+
+type GoalRow = {
+  matchId: string;
+  round: string;
+  team: string;
+  player: string;
+  minute: string;
+  goalType?: string;
 };
 
 export type TeamSummary = {
@@ -37,7 +59,7 @@ export type TeamSummary = {
 };
 
 export function getMatchYear(match: MatchRow): string {
-  const rawDate = (match.data ?? "").trim();
+  const rawDate = (match.matchDate ?? "").trim();
   const parts = rawDate.split("/");
   return parts[parts.length - 1] ?? "";
 }
@@ -59,7 +81,19 @@ async function loadCsvFile<T extends Record<string, string>>(fileName: string): 
 }
 
 export async function loadMatches(): Promise<MatchRow[]> {
-  return loadCsvFile<MatchRow>("campeonato-brasileiro-full.csv");
+  const rows = await loadCsvFile<RawMatchRow>("campeonato-brasileiro-full.csv");
+  return rows.map((row) => ({
+    id: row.ID,
+    round: row.rodata,
+    matchDate: row.data,
+    matchTime: row.hora,
+    homeTeam: row.mandante,
+    awayTeam: row.visitante,
+    winner: row.vencedor,
+    venue: row.arena,
+    homeScore: row.mandante_Placar,
+    awayScore: row.visitante_Placar,
+  }));
 }
 
 export async function loadStatsRows(): Promise<Array<Record<string, string>>> {
@@ -67,7 +101,15 @@ export async function loadStatsRows(): Promise<Array<Record<string, string>>> {
 }
 
 async function loadGoalsRows(): Promise<GoalRow[]> {
-  return loadCsvFile<GoalRow>("campeonato-brasileiro-gols.csv");
+  const rows = await loadCsvFile<RawGoalRow>("campeonato-brasileiro-gols.csv");
+  return rows.map((row) => ({
+    matchId: row.partida_id,
+    round: row.rodata,
+    team: row.clube,
+    player: row.atleta,
+    minute: row.minuto,
+    goalType: row.tipo_de_gol,
+  }));
 }
 
 export async function getDataSummary() {
@@ -75,8 +117,8 @@ export async function getDataSummary() {
   const teams = new Set<string>();
 
   for (const row of matches) {
-    if (row.mandante) teams.add(row.mandante.trim());
-    if (row.visitante) teams.add(row.visitante.trim());
+    if (row.homeTeam) teams.add(row.homeTeam.trim());
+    if (row.awayTeam) teams.add(row.awayTeam.trim());
   }
 
   return {
@@ -84,8 +126,8 @@ export async function getDataSummary() {
     totalStatsRows: stats.length,
     totalTeams: teams.size,
     range: {
-      minId: Number(matches[0]?.ID ?? 0),
-      maxId: Number(matches[matches.length - 1]?.ID ?? 0),
+      minId: Number(matches[0]?.id ?? 0),
+      maxId: Number(matches[matches.length - 1]?.id ?? 0),
     },
     updatedAt: new Date().toISOString(),
   };
@@ -96,8 +138,8 @@ export async function getTeams() {
   const teams = new Set<string>();
 
   for (const row of matches) {
-    if (row.mandante) teams.add(row.mandante.trim());
-    if (row.visitante) teams.add(row.visitante.trim());
+    if (row.homeTeam) teams.add(row.homeTeam.trim());
+    if (row.awayTeam) teams.add(row.awayTeam.trim());
   }
 
   return Array.from(teams).sort((left, right) => left.localeCompare(right));
@@ -126,8 +168,8 @@ export async function getTeamsByYear(year: string) {
       continue;
     }
 
-    if (match.mandante) teams.add(match.mandante.trim());
-    if (match.visitante) teams.add(match.visitante.trim());
+    if (match.homeTeam) teams.add(match.homeTeam.trim());
+    if (match.awayTeam) teams.add(match.awayTeam.trim());
   }
 
   return Array.from(teams).sort((left, right) => left.localeCompare(right));
@@ -142,19 +184,19 @@ export async function getFilteredMatches(options: {
   const filtered = matches.filter((match) => {
     const yearMatches = getMatchYear(match) === options.year;
     const teamMatches =
-      !options.team || match.mandante === options.team || match.visitante === options.team;
+      !options.team || match.homeTeam === options.team || match.awayTeam === options.team;
     return yearMatches && teamMatches;
   });
 
   return filtered.sort((left, right) => {
-    const leftRound = Number(left.rodata) || 0;
-    const rightRound = Number(right.rodata) || 0;
+    const leftRound = Number(left.round) || 0;
+    const rightRound = Number(right.round) || 0;
     if (leftRound !== rightRound) {
       return leftRound - rightRound;
     }
 
-    const leftId = Number(left.ID) || 0;
-    const rightId = Number(right.ID) || 0;
+    const leftId = Number(left.id) || 0;
+    const rightId = Number(right.id) || 0;
     return leftId - rightId;
   });
 }
@@ -165,35 +207,35 @@ export async function getTeamSummary(options: { year: string; team: string }): P
   const yearMatches = matches.filter((match) => getMatchYear(match) === options.year);
 
   const teamMatches = yearMatches.filter(
-    (match) => match.mandante === options.team || match.visitante === options.team,
+    (match) => match.homeTeam === options.team || match.awayTeam === options.team,
   );
 
   const goalsFor = teamMatches.reduce((total, match) => {
-    if (match.mandante === options.team) {
-      return total + (Number(match.mandante_Placar) || 0);
+    if (match.homeTeam === options.team) {
+      return total + (Number(match.homeScore) || 0);
     }
-    return total + (Number(match.visitante_Placar) || 0);
+    return total + (Number(match.awayScore) || 0);
   }, 0);
 
   const goalsAgainst = teamMatches.reduce((total, match) => {
-    if (match.mandante === options.team) {
-      return total + (Number(match.visitante_Placar) || 0);
+    if (match.homeTeam === options.team) {
+      return total + (Number(match.awayScore) || 0);
     }
-    return total + (Number(match.mandante_Placar) || 0);
+    return total + (Number(match.homeScore) || 0);
   }, 0);
 
   const matchResults = teamMatches.reduce(
     (acc, match) => {
-      const homeGoals = Number(match.mandante_Placar) || 0;
-      const awayGoals = Number(match.visitante_Placar) || 0;
+      const homeGoals = Number(match.homeScore) || 0;
+      const awayGoals = Number(match.awayScore) || 0;
 
       if (homeGoals === awayGoals) {
         acc.matchesDrawn += 1;
         return acc;
       }
 
-      const teamWonAsHome = match.mandante === options.team && homeGoals > awayGoals;
-      const teamWonAsAway = match.visitante === options.team && awayGoals > homeGoals;
+      const teamWonAsHome = match.homeTeam === options.team && homeGoals > awayGoals;
+      const teamWonAsAway = match.awayTeam === options.team && awayGoals > homeGoals;
 
       if (teamWonAsHome || teamWonAsAway) {
         acc.matchesWon += 1;
@@ -213,9 +255,9 @@ export async function getTeamSummary(options: { year: string; team: string }): P
   const scorersMap = new Map<string, number>();
 
   for (const goal of goals) {
-    const goalTeam = goal.clube?.trim();
-    const goalPlayer = goal.atleta?.trim();
-    const goalType = goal.tipo_de_gol?.trim().toLowerCase();
+    const goalTeam = goal.team?.trim();
+    const goalPlayer = goal.player?.trim();
+    const goalType = goal.goalType?.trim().toLowerCase();
 
     if (!goalTeam || !goalPlayer) {
       continue;
@@ -229,7 +271,7 @@ export async function getTeamSummary(options: { year: string; team: string }): P
       continue;
     }
 
-    const match = yearMatches.find((item) => item.ID === goal.partida_id);
+    const match = yearMatches.find((item) => item.id === goal.matchId);
     if (!match) {
       continue;
     }

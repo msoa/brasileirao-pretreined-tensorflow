@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 
 type MatchRow = {
-  ID: string;
-  rodata: string;
-  data: string;
-  mandante: string;
-  visitante: string;
-  mandante_Placar: string;
-  visitante_Placar: string;
-  vencedor: string;
+  id: string;
+  round: string;
+  matchDate: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: string;
+  awayScore: string;
+  winner: string;
 };
 
 type StandingEntry = {
@@ -25,7 +25,7 @@ type StandingEntry = {
 };
 
 type TeamStatus = {
-  type: "ELIMINADO" | "CAMPEAO" | "VICE" | "TERCEIRO" | "QUARTO" | "OUTRO";
+  type: "ELIMINATED" | "CHAMPION" | "RUNNER_UP" | "THIRD" | "FOURTH" | "OTHER";
   message: string;
 };
 
@@ -55,23 +55,23 @@ function AccordionChevron({ className = "" }: { className?: string }) {
 }
 
 function getStatusBadgeClass(statusType: TeamStatus["type"]): string {
-  if (statusType === "ELIMINADO") {
+  if (statusType === "ELIMINATED") {
     return "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300";
   }
 
-  if (statusType === "CAMPEAO") {
+  if (statusType === "CHAMPION") {
     return "border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300";
   }
 
-  if (statusType === "VICE") {
+  if (statusType === "RUNNER_UP") {
     return "border-slate-500/40 bg-slate-500/15 text-slate-800 dark:text-slate-300";
   }
 
-  if (statusType === "TERCEIRO") {
+  if (statusType === "THIRD") {
     return "border-orange-700/40 bg-orange-700/15 text-orange-800 dark:text-orange-300";
   }
 
-  if (statusType === "QUARTO") {
+  if (statusType === "FOURTH") {
     return "border-sky-600/40 bg-sky-600/15 text-sky-800 dark:text-sky-300";
   }
 
@@ -105,11 +105,11 @@ function buildFinalStandings(matches: MatchRow[]): StandingEntry[] {
   }
 
   for (const match of matches) {
-    const home = ensureTeam(match.mandante);
-    const away = ensureTeam(match.visitante);
+    const home = ensureTeam(match.homeTeam);
+    const away = ensureTeam(match.awayTeam);
 
-    const homeGoals = parseScore(match.mandante_Placar);
-    const awayGoals = parseScore(match.visitante_Placar);
+    const homeGoals = parseScore(match.homeScore);
+    const awayGoals = parseScore(match.awayScore);
 
     home.played += 1;
     away.played += 1;
@@ -148,23 +148,23 @@ function getTeamStatus(selectedTeam: string, yearMatches: MatchRow[], standings:
     return null;
   }
 
-  const maxRound = Math.max(...yearMatches.map((match) => Number(match.rodata) || 0), 0);
+  const maxRound = Math.max(...yearMatches.map((match) => Number(match.round) || 0), 0);
   const teamMatches = yearMatches.filter(
-    (match) => match.mandante === selectedTeam || match.visitante === selectedTeam,
+    (match) => match.homeTeam === selectedTeam || match.awayTeam === selectedTeam,
   );
 
   if (teamMatches.length === 0) {
     return {
-      type: "OUTRO",
+      type: "OTHER",
       message: "Time sem partidas registradas no ano selecionado.",
     };
   }
 
-  const teamLastRound = Math.max(...teamMatches.map((match) => Number(match.rodata) || 0), 0);
+  const teamLastRound = Math.max(...teamMatches.map((match) => Number(match.round) || 0), 0);
 
   if (teamLastRound < maxRound) {
     return {
-      type: "ELIMINADO",
+      type: "ELIMINATED",
       message: `Eliminado na rodada ${teamLastRound}.`,
     };
   }
@@ -172,20 +172,20 @@ function getTeamStatus(selectedTeam: string, yearMatches: MatchRow[], standings:
   const position = standings.findIndex((entry) => entry.team === selectedTeam) + 1;
 
   if (position === 1) {
-    return { type: "CAMPEAO", message: "Campeão" };
+    return { type: "CHAMPION", message: "Campeão" };
   }
   if (position === 2) {
-    return { type: "VICE", message: "Vice-campeão" };
+    return { type: "RUNNER_UP", message: "Vice-campeão" };
   }
   if (position === 3) {
-    return { type: "TERCEIRO", message: "3º lugar" };
+    return { type: "THIRD", message: "3º lugar" };
   }
   if (position === 4) {
-    return { type: "QUARTO", message: "4º lugar" };
+    return { type: "FOURTH", message: "4º lugar" };
   }
 
   return {
-    type: "OUTRO",
+    type: "OTHER",
     message: `${position}º lugar`,
   };
 }
@@ -198,7 +198,7 @@ function getRankLabel(position: number): string {
   return `${position}º lugar`;
 }
 
-export function ExploracaoContent() {
+export function ExplorationContent() {
   const [years, setYears] = useState<string[]>([]);
   const [selectedYear, setSelectedYear] = useState("");
   const [teams, setTeams] = useState<string[]>([]);
@@ -302,7 +302,7 @@ export function ExploracaoContent() {
     const map = new Map<number, MatchRow[]>();
 
     for (const match of matches) {
-      const round = Number(match.rodata) || 0;
+      const round = Number(match.round) || 0;
       const current = map.get(round) ?? [];
       current.push(match);
       map.set(round, current);
@@ -334,7 +334,7 @@ export function ExploracaoContent() {
   const stats = useMemo(() => {
     const total = matches.length;
     const rounds = groupedByRound.length;
-    const wins = matches.filter((match) => match.vencedor && match.vencedor !== "-").length;
+    const wins = matches.filter((match) => match.winner && match.winner !== "-").length;
     return { total, rounds, wins };
   }, [groupedByRound.length, matches]);
 
@@ -589,9 +589,9 @@ export function ExploracaoContent() {
                         {match ? (
                           <div className="card-neon-sm text-sm">
                             <div className="font-semibold">
-                              {match.mandante} {match.mandante_Placar}x{match.visitante_Placar} {match.visitante}
+                              {match.homeTeam} {match.homeScore}x{match.awayScore} {match.awayTeam}
                             </div>
-                            <div className="mt-1 text-muted">{match.data}</div>
+                            <div className="mt-1 text-muted">{match.matchDate}</div>
                           </div>
                         ) : (
                           <span className="text-black/40 dark:text-white/40">—</span>
@@ -610,10 +610,10 @@ export function ExploracaoContent() {
   );
 }
 
-export default function ExploracaoPage() {
+export default function ExplorationPage() {
   return (
     <AppShell>
-      <ExploracaoContent />
+      <ExplorationContent />
     </AppShell>
   );
 }

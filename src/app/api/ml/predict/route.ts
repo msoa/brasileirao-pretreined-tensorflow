@@ -3,8 +3,8 @@ import { z } from "zod";
 import { mlPost } from "@/lib/server/ml-client";
 
 const PredictSchema = z.object({
-  mandante: z.string().min(1),
-  visitante: z.string().min(1),
+  homeTeam: z.string().min(1),
+  awayTeam: z.string().min(1),
 });
 
 export async function POST(request: NextRequest) {
